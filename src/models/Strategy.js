@@ -1,0 +1,63 @@
+import mongoose from 'mongoose';
+
+const strategySchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    symbol: {
+      type: String,
+      required: true,
+      uppercase: true,
+    },
+    timeframe: {
+      type: String,
+      required: true, // e.g., '1m', '5m', '1h'
+    },
+    // Dynamic Rules Engine Structure
+    // Example: { 
+    //   condition: 'AND', 
+    //   rules: [
+    //     { indicator: 'RSI', period: 14, operator: '<', value: 30 },
+    //     { indicator: 'SMA', period: 50, operator: '>', value: 'SMA', valuePeriod: 200 }
+    //   ] 
+    // }
+    logic: {
+      condition: {
+        type: String,
+        enum: ['AND', 'OR'],
+        default: 'AND'
+      },
+      rules: [{
+        indicator: { type: String, required: true }, // RSI, SMA, EMA, MACD
+        params: { type: Map, of: Number }, // { period: 14 }
+        operator: { type: String, enum: ['>', '<', '>=', '<=', '==', 'CROSS_ABOVE', 'CROSS_BELOW'], required: true },
+        comparisonType: { type: String, enum: ['VALUE', 'INDICATOR'], default: 'VALUE' },
+        value: { type: mongoose.Schema.Types.Mixed, required: true }, // 30 or { indicator: 'SMA', params: {...} }
+      }]
+    },
+    action: {
+      type: String,
+      enum: ['BUY', 'SELL', 'ALERT'],
+      default: 'ALERT'
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const Strategy = mongoose.model('Strategy', strategySchema);
+
+export default Strategy;

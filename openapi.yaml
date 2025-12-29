@@ -1,0 +1,386 @@
+openapi: 3.0.0
+info:
+  title: MSPK Trading Backend API
+  description: API documentation for MSPK Trading Backend
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/v1
+    description: Local Development Server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+    Strategy:
+      type: object
+      properties:
+        name:
+          type: string
+        symbol:
+          type: string
+        timeframe:
+          type: string
+          enum: ["1m", "5m", "15m", "1h", "4h", "1d"]
+        action:
+          type: string
+          enum: ["BUY", "SELL", "ALERT"]
+        logic:
+          type: object
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Auth Routes
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                name:
+                  type: string
+                phone:
+                  type: string
+            example:
+              email: "testuser@example.com"
+              password: "password123"
+              name: "Test User"
+              phone: "9876543210"
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Bad Request
+
+  /auth/login:
+    post:
+      summary: Login user
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+            example:
+              email: "testuser@example.com"
+              password: "password123"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+                  tokens:
+                    type: object
+                    properties:
+                      access:
+                        type: object
+                        properties:
+                          token:
+                            type: string
+                          expires:
+                            type: string
+                      refresh:
+                        type: object
+                        properties:
+                          token:
+                            type: string
+                          expires:
+                            type: string
+
+  # Strategy Routes
+  /strategies:
+    post:
+      summary: Create a new strategy
+      tags: [Strategies]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, symbol, timeframe, action, logic]
+              properties:
+                name:
+                  type: string
+                symbol:
+                  type: string
+                timeframe:
+                  type: string
+                  enum: ["1m", "5m", "15m", "1h", "4h", "1d"]
+                action:
+                  type: string
+                  enum: ["BUY", "SELL", "ALERT"]
+                logic:
+                  type: object
+                  properties:
+                    condition:
+                      type: string
+                      enum: ["AND", "OR"]
+                      default: "AND"
+                    rules:
+                      type: array
+                      items:
+                        type: object
+                        required: [indicator, params, operator, value]
+                        properties:
+                          indicator:
+                            type: string
+                          params:
+                            type: object
+                          operator:
+                            type: string
+                            enum:
+                              [
+                                ">",
+                                "<",
+                                ">=",
+                                "<=",
+                                "==",
+                                "CROSS_ABOVE",
+                                "CROSS_BELOW",
+                              ]
+                          comparisonType:
+                            type: string
+                            enum: ["VALUE", "INDICATOR"]
+                            default: VALUE
+                          value:
+                            oneOf:
+                              - type: number
+                              - type: object
+            example:
+              name: "RSI Crossover Strategy"
+              symbol: "AAPL"
+              timeframe: "1h"
+              action: "BUY"
+              logic:
+                condition: "AND"
+                rules:
+                  - indicator: "RSI"
+                    params:
+                      period: 14
+                    operator: ">"
+                    comparisonType: "VALUE"
+                    value: 70
+                  - indicator: "SMA"
+                    params:
+                      period: 50
+                    operator: "CROSS_ABOVE"
+                    comparisonType: "INDICATOR"
+                    value:
+                      indicator: "EMA"
+                      params:
+                        period: 200
+      responses:
+        "201":
+          description: Strategy created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strategy"
+    get:
+      summary: Get all strategies
+      tags: [Strategies]
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+        - in: query
+          name: symbol
+          schema:
+            type: string
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of strategies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Strategy"
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  totalResults:
+                    type: integer
+
+  /strategies/{strategyId}:
+    get:
+      summary: Get a strategy by ID
+      tags: [Strategies]
+      parameters:
+        - in: path
+          name: strategyId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Strategy details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Strategy"
+        "404":
+          description: Strategy not found
+    delete:
+      summary: Delete a strategy
+      tags: [Strategies]
+      parameters:
+        - in: path
+          name: strategyId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No content
+
+  # Admin Routes
+  /admin/users:
+    get:
+      summary: Get all users (Admin only)
+      tags: [Admin]
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /admin/users/{userId}:
+    get:
+      summary: Get user details (Admin only)
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    patch:
+      summary: Update user role (Admin only)
+      tags: [Admin]
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+            example:
+              role: "admin"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/system/health:
+    get:
+      summary: Get system health status (Admin only)
+      tags: [Admin]
+      responses:
+        "200":
+          description: System health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  components:
+                    type: object
+                  memory:
+                    type: object

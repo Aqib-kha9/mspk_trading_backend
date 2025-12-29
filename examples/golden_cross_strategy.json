@@ -1,0 +1,34 @@
+{
+    "name": "Golden Cross (SMA 50 > SMA 200)",
+    "symbol": "BTC/USD",
+    "timeframe": "1h",
+    "action": "BUY",
+    "logic": {
+        "condition": "AND",
+        "rules": [
+            {
+                "indicator": "SMA",
+                "params": {
+                    "period": 50
+                },
+                "operator": "CROSS_ABOVE",
+                "comparisonType": "INDICATOR",
+                "value": {
+                    "indicator": "SMA",
+                    "params": {
+                        "period": 200
+                    }
+                }
+            },
+            {
+                "indicator": "RSI",
+                "params": {
+                    "period": 14
+                },
+                "operator": "<",
+                "comparisonType": "VALUE",
+                "value": 70
+            }
+        ]
+    }
+}
