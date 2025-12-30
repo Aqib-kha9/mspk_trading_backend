@@ -16,14 +16,23 @@ const initSocket = (server) => {
 
   // Middleware for Auth
   io.use((socket, next) => {
-    if (socket.handshake.query && socket.handshake.query.token) {
-      jwt.verify(socket.handshake.query.token, config.jwt.secret, (err, decoded) => {
-        if (err) return next(new Error('Authentication error'));
-        socket.decoded = decoded;
-        next();
-      });
-    } else {
-      next(new Error('Authentication error'));
+    try {
+        if (socket.handshake.query && socket.handshake.query.token) {
+        jwt.verify(socket.handshake.query.token, config.jwt.secret, (err, decoded) => {
+            if (err) {
+                logger.error(`Socket Auth Failed: ${err.message}`);
+                return next(new Error('Authentication error'));
+            }
+            socket.decoded = decoded;
+            next();
+        });
+        } else {
+            logger.warn('Socket connection rejected: No token provided');
+            next(new Error('Authentication error'));
+        }
+    } catch (error) {
+        logger.error(`Socket Middleware Error: ${error.message}`);
+        next(new Error('Internal Server Error'));
     }
   });
 
@@ -53,19 +62,27 @@ const initSocket = (server) => {
   redisSubscriber.subscribe('market_data', (err) => {
       if (err) logger.error('Failed to subscribe to market_data channel');
   });
+  
+  // Listen to Redis Market Stats
+  redisSubscriber.subscribe('market_stats', (err) => {
+      if (err) logger.error('Failed to subscribe to market_stats channel');
+  });
 
   redisSubscriber.on('message', (channel, message) => {
-    if (channel === 'market_data') {
-      try {
+    try {
         const data = JSON.parse(message);
-        // Broadcast to the specific symbol room
-        // data.symbol must exist
-        if (data.symbol) {
-            io.to(data.symbol).emit('tick', data);
+        
+        if (channel === 'market_data') {
+            // Broadcast to the specific symbol room
+            if (data.symbol) {
+                io.to(data.symbol).emit('tick', data);
+            }
+        } else if (channel === 'market_stats') {
+            // Broadcast globally (or to specific admin room if needed)
+            io.emit('market_stats', data);
         }
-      } catch (error) {
+    } catch (error) {
         logger.error('Socket Broadcast Error', error);
-      }
     }
   });
 

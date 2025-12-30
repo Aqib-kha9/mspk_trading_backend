@@ -4,9 +4,17 @@ import settingController from '../controllers/setting.controller.js';
 
 const router = express.Router();
 
+// All settings routes require Admin access
+router.use(auth(['admin']));
+
+router
+  .route('/')
+  .get(settingController.getSettings);
+
+router.put('/bulk', settingController.updateBulkSettings);
+
 router
   .route('/:key')
-  .get(auth(['admin']), settingController.getSetting)
-  .post(auth(['admin']), settingController.updateSetting);
+  .patch(settingController.updateSetting);
 
 export default router;

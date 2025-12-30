@@ -8,6 +8,9 @@ import signalRoute from './signal.route.js';
 import dashboardRoute from './dashboard.route.js';
 import subBrokerRoute from './subBroker.route.js';
 import settingRoute from './setting.route.js';
+import marketRoute from './market.route.js';
+import ticketRoute from './ticket.route.js';
+import analyticsRoute from './analytics.route.js';
 
 const router = express.Router();
 
@@ -47,6 +50,18 @@ const defaultRoutes = [
   {
     path: '/settings',
     route: settingRoute,
+  },
+  {
+    path: '/market',
+    route: marketRoute,
+  },
+  {
+    path: '/tickets',
+    route: ticketRoute,
+  },
+  {
+    path: '/analytics',
+    route: analyticsRoute,
   },
 ];
 

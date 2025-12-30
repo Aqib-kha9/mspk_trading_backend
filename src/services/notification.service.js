@@ -33,32 +33,78 @@ class NotificationService {
   }
 
   async scheduleNotifications(signal) {
-      // In a real app, check User preferences here
-      // For now, assume we send both Email and Push if enabled in Signal logic (or by default)
-      
-      const userId = signal.user;
-      
-      // Add to Queue (Email)
-      await notificationQueue.add('send-email', {
-          type: 'email',
-          userId,
-          signal
-      }, {
-          attempts: 3,
-          backoff: 5000
-      });
+      try {
+          // 1. TELEGRAM BROADCAST (System Level)
+          // Always schedule this once, worker deals with channel config
+          await notificationQueue.add('send-telegram-broadcast', {
+              type: 'telegram',
+              signal,
+              userId: 'system' // Not user specific
+          }, { removeOnComplete: true });
 
-      // Add to Queue (Push)
-      await notificationQueue.add('send-push', {
-          type: 'push',
-          userId,
-          signal
-      }, {
-          attempts: 3,
-          removeOnComplete: true
-      });
-      
-      logger.info(`Scheduled notifications for Signal ${signal._id}`);
+          // 2. TARGETED NOTIFICATIONS (WhatsApp / Push)
+          // Find users with Active Subscriptions matching this Segment
+          
+          // Step A: Find Plans that cover this segment
+          // Note: Plan schema uses 'segment' enum. Signal has 'segment' field.
+          // Adjust matching logic if segment names differ. Assuming exact match for now.
+          const { default: Subscription } = await import('../models/Subscription.js');
+          const { default: Plan } = await import('../models/Plan.js');
+
+          // Find active subscriptions
+          const now = new Date();
+          const activeSubs = await Subscription.find({
+              status: 'active',
+              endDate: { $gt: now }
+          }).populate('plan');
+
+          // Filter for segment match
+          const eligibleUserIds = new Set();
+          
+          activeSubs.forEach(sub => {
+              if (sub.plan && sub.user) {
+                  // Direct Segment Match
+                  if (sub.plan.segment === signal.segment) {
+                      eligibleUserIds.add(sub.user.toString());
+                  }
+                  // TODO: Handle 'All Segments' plans if any
+              }
+          });
+
+          // Also include the Creator for verification (if not already included)
+          if (signal.createdBy) eligibleUserIds.add(signal.createdBy.toString());
+
+          logger.info(`Found ${eligibleUserIds.size} eligible users for Signal ${signal.symbol}`);
+
+          // Step B: Schedule Jobs for each user
+          const promises = Array.from(eligibleUserIds).map(userId => {
+              // We schedule ONE job per user, worker decides channel priority (Push vs WA vs Email)
+              // Actually worker is split by type currently. Let's schedule both for now.
+              // Optimization: We can have a 'notify-user' job types that handles all channels inside worker. 
+              // But strictly following worker logic:
+              
+              const p1 = notificationQueue.add('send-push', {
+                  type: 'push',
+                  userId,
+                  signal
+              }, { removeOnComplete: true });
+
+              const p2 = notificationQueue.add('send-whatsapp', {
+                  type: 'whatsapp',
+                  userId,
+                  signal
+              }, { removeOnComplete: true });
+              
+              return [p1, p2];
+          });
+
+          await Promise.all(promises.flat());
+          
+          logger.info(`Scheduled notifications for Signal ${signal._id} to ${eligibleUserIds.size} users`);
+
+      } catch (error) {
+          logger.error('Failed to schedule notifications', error);
+      }
   }
 }
 

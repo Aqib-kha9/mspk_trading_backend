@@ -13,4 +13,9 @@ router
   .get(subscriptionController.getMySubscriptions) // View my history
   .post(validate(subscriptionValidation.purchaseSubscription), subscriptionController.purchaseSubscription);
 
+// Admin Routes
+router.get('/admin/all', auth('admin'), subscriptionController.getAllSubscriptions);
+router.post('/admin/assign', auth('admin'), subscriptionController.assignPlan);
+router.patch('/admin/:subscriptionId/extend', auth('admin'), subscriptionController.extendSubscription);
+
 export default router;

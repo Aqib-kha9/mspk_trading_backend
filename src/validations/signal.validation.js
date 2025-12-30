@@ -32,7 +32,14 @@ const updateSignal = {
     }).min(1)
 };
 
+const deleteSignal = {
+    params: Joi.object().keys({
+        signalId: Joi.string().required()
+    })
+};
+
 export default {
   createSignal,
-  updateSignal
+  updateSignal,
+  deleteSignal
 };

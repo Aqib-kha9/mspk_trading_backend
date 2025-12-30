@@ -1,19 +1,17 @@
 import express from 'express';
-import auth from '../middleware/auth.js';
-import validate from '../middleware/validate.js';
-import strategyValidation from '../validations/strategy.validation.js';
 import strategyController from '../controllers/strategy.controller.js';
+import auth from '../middleware/auth.js';
 
 const router = express.Router();
 
 router
   .route('/')
-  .post(auth(), validate(strategyValidation.createStrategy), strategyController.createStrategy)
-  .get(auth(), validate(strategyValidation.getStrategies), strategyController.getStrategies);
+  .post(auth(), strategyController.createStrategy)
+  .get(auth(), strategyController.getStrategies);
 
 router
   .route('/:strategyId')
-  .get(auth(), validate(strategyValidation.getStrategy), strategyController.getStrategy)
-  .delete(auth(), validate(strategyValidation.getStrategy), strategyController.deleteStrategy);
+  .patch(auth(), strategyController.updateStrategy)
+  .delete(auth(), strategyController.deleteStrategy);
 
 export default router;

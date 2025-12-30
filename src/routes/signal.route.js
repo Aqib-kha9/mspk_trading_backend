@@ -14,5 +14,6 @@ router.get('/', signalController.getSignals);
 // Admin Only
 router.post('/', auth(['admin']), validate(signalValidation.createSignal), signalController.createSignal);
 router.patch('/:signalId', auth(['admin']), validate(signalValidation.updateSignal), signalController.updateSignal);
+router.delete('/:signalId', auth(['admin']), validate(signalValidation.deleteSignal), signalController.deleteSignal);
 
 export default router;

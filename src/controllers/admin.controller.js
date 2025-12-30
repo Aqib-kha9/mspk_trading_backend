@@ -5,6 +5,7 @@ import Subscription from '../models/Subscription.js';
 import Plan from '../models/Plan.js';
 import ApiError from '../utils/ApiError.js';
 import { redisClient } from '../services/redis.service.js';
+import transactionService from '../services/transaction.service.js';
 
 const createUser = catchAsync(async (req, res) => {
     console.log("Create User Payload:", JSON.stringify(req.body, null, 2)); // DEBUG LOG
@@ -36,13 +37,25 @@ const createUser = catchAsync(async (req, res) => {
             const endDate = new Date();
             endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
 
+            // Create Manual Transaction
+            const transaction = await transactionService.createTransaction({
+                user: user.id,
+                amount: plan.price,
+                currency: 'INR',
+                type: 'DEBIT',
+                purpose: 'SUBSCRIPTION',
+                status: 'success',
+                paymentGateway: 'MANUAL_ADMIN',
+                metadata: { planId: plan.id, planName: plan.name, adminCreated: true }
+            });
+
             await Subscription.create({
                 user: user.id,
                 plan: plan.id,
                 status: 'active',
                 startDate,
                 endDate,
-                transaction: null // Admin created, no transaction
+                transaction: transaction.id
             });
         }
     }

@@ -8,5 +8,20 @@ import signalService from './signal.service.js';
 import dashboardService from './dashboard.service.js';
 import subBrokerService from './subBroker.service.js';
 import settingService from './setting.service.js';
+import strategyService from './strategy.service.js';
+import marketDataService from './marketData.service.js';
 
-export { authService, tokenService, userService, planService, transactionService, subscriptionService, signalService, dashboardService, subBrokerService, settingService };
+export { 
+    authService, 
+    tokenService, 
+    userService, 
+    planService, 
+    transactionService, 
+    subscriptionService, 
+    signalService, 
+    dashboardService, 
+    subBrokerService, 
+    settingService, 
+    strategyService, 
+    marketDataService 
+};

@@ -10,7 +10,6 @@ const signalSchema = new mongoose.Schema(
     },
     segment: {
       type: String,
-      enum: ['EQUITY', 'FNO', 'COMMODITY', 'CURRENCY'],
       required: true,
     },
     type: {

@@ -10,15 +10,15 @@ const createSignal = catchAsync(async (req, res) => {
 const getSignals = catchAsync(async (req, res) => {
   // Logic: Show all if admin. If user, show Free OR Subscribed segments.
   let filter = {};
-  
+  const { page = 1, limit = 10, search, status, segment } = req.query;
+
+  // 1. Build Base Filter (Permissions)
   if (req.user.role !== 'admin') {
-      // Get User Subscriptions
       const subs = await subscriptionService.getUserSubscriptions(req.user.id);
       const activeSegments = subs
         .filter(s => s.status === 'active')
-        .map(s => s.plan.segment); // Assuming plan is populated
+        .map(s => s.plan.segment);
 
-      // Condition: isFree OR segment IN activeSegments
       filter = {
           $or: [
               { isFree: true },
@@ -27,22 +27,55 @@ const getSignals = catchAsync(async (req, res) => {
       };
   }
 
-  /* 
-     Frontend Expects: { id, symbol, type, entry, stoploss, status, timestamp }
-     Backend: { _id, symbol, type, entryPrice, stopLoss, status, createdAt }
-  */
-  const formattedSignals = signals.map(s => ({
+  // 2. Apply Search & Filters
+  if (search) {
+      // Create regex for symbol
+      filter.symbol = { $regex: search, $options: 'i' };
+  }
+
+  if (status && status !== 'All') {
+      if (status === '!Closed') {
+          filter.status = { $ne: 'Closed' };
+      } else {
+          filter.status = status;
+      }
+  }
+
+  if (segment && segment !== 'All') {
+      filter.segment = segment;
+  }
+
+  // 3. Query Data
+  const signalsData = await signalService.querySignals(filter, { page, limit });
+  
+  // 4. Get Global Stats (Independent of filters? Or dependent? Usually Global for the dashboard feel)
+  // For now, let's keep stats global as per request "active positions", "success rate" usually implies overall system health.
+  const stats = await signalService.getSignalStats();
+
+  const formattedResults = signalsData.results.map(s => ({
       id: s._id,
       symbol: s.symbol,
       type: s.type,
-      entry: s.entryPrice, // key mapping
-      stoploss: s.stopLoss, // key mapping
+      entry: s.entryPrice,
+      stoploss: s.stopLoss,
       status: s.status,
       timestamp: s.createdAt,
-      // Keep other fields if needed for config
-      segment: s.segment
+      segment: s.segment,
+      targets: s.targets,
+      isFree: s.isFree,
+      notes: s.notes
   }));
-  res.send(formattedSignals);
+
+  res.send({
+      results: formattedResults,
+      pagination: {
+          page: signalsData.page,
+          limit: signalsData.limit,
+          totalPages: signalsData.totalPages,
+          totalResults: signalsData.totalResults
+      },
+      stats
+  });
 });
 
 const updateSignal = catchAsync(async (req, res) => {
@@ -50,8 +83,14 @@ const updateSignal = catchAsync(async (req, res) => {
     res.send(signal);
 });
 
+const deleteSignal = catchAsync(async (req, res) => {
+    await signalService.deleteSignalById(req.params.signalId);
+    res.status(httpStatus.NO_CONTENT).send();
+});
+
 export default {
   createSignal,
   getSignals,
-  updateSignal
+  updateSignal,
+  deleteSignal
 };

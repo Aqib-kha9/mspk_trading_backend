@@ -21,6 +21,17 @@ const strategySchema = new mongoose.Schema(
       type: String,
       required: true, // e.g., '1m', '5m', '1h'
     },
+    segment: {
+      type: String,
+      enum: ['EQUITY', 'FNO', 'COMMODITY', 'CURRENCY'],
+      required: true,
+      default: 'EQUITY'
+    },
+    stats: {
+        totalSignals: { type: Number, default: 0 },
+        successCount: { type: Number, default: 0 },
+        lastSignalAt: { type: Date }
+    },
     // Dynamic Rules Engine Structure
     // Example: { 
     //   condition: 'AND', 
@@ -48,9 +59,10 @@ const strategySchema = new mongoose.Schema(
       enum: ['BUY', 'SELL', 'ALERT'],
       default: 'ALERT'
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    status: {
+      type: String,
+      enum: ['Active', 'Paused', 'Archived'],
+      default: 'Paused'
     },
   },
   {

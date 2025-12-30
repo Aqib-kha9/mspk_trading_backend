@@ -32,7 +32,7 @@ const transactionSchema = new mongoose.Schema(
     },
     paymentGateway: {
       type: String,
-      enum: ['RAZORPAY', 'STRIPE', 'MANUAL'],
+      enum: ['RAZORPAY', 'STRIPE', 'MANUAL', 'MANUAL_ADMIN'],
     },
     gatewayTransactionId: {
       type: String,
