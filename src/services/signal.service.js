@@ -1,7 +1,7 @@
 import Signal from '../models/Signal.js';
+import announcementService from './announcement.service.js';
 import logger from '../config/logger.js';
 import { getIo } from './socket.service.js';
-// import { sendPushNotification } from './email.service.js'; 
 
 const createSignal = async (signalBody, user) => {
   const signal = await Signal.create({ ...signalBody, createdBy: user.id });
@@ -14,11 +14,29 @@ const createSignal = async (signalBody, user) => {
       logger.error('Failed to emit socket event for new signal', e);
   }
 
+  // Create Announcement for the Feed
+  try {
+      await announcementService.createAnnouncement({
+          title: `New Signal: ${signal.symbol} ${signal.type}`,
+          message: `Entry: ${signal.entryPrice} | TP: ${signal.target1} | SL: ${signal.stopLoss}`,
+          type: 'SIGNAL',
+          priority: 'NORMAL',
+          targetAudience: { role: 'all', planValues: [] },
+          isActive: true
+      });
+  } catch (e) {
+      logger.error('Failed to create announcement for signal', e);
+  }
+  
   // Publish to Redis for Notification Service
   try {
       const { redisClient } = await import('./redis.service.js');
       // Payload for notification service
-      const payload = JSON.stringify({ ...signal.toJSON(), user: user.id }); 
+      const payload = JSON.stringify({ 
+          ...signal.toJSON(), 
+          user: user.id,
+          subType: 'SIGNAL_NEW'  // Explicitly tell worker to use New Signal Template
+      }); 
       await redisClient.publish('signals', payload);
       logger.info(`Published new signal ${signal.id} to Redis 'signals' channel`);
   } catch (e) {
@@ -104,8 +122,33 @@ const updateSignalById = async (signalId, updateBody) => {
        try {
           const io = getIo();
           io.emit('update_signal', signal);
+
+          // Notification Logic
+          const { redisClient } = await import('./redis.service.js');
+          let subType = null;
+          let notificationData = { ...signal.toJSON() }; // Use signal.toJSON() for full refreshed document
+
+          if (updateBody.status === 'Target Hit') {
+              subType = 'SIGNAL_TARGET';
+              notificationData.targetLevel = 'TP1'; // Logic to detect which target? usually TP1
+          } else if (updateBody.status === 'Stoploss Hit') {
+              subType = 'SIGNAL_STOPLOSS';
+          } else if (updateBody.report || updateBody.notes || updateBody.status) {
+              // Generic Update
+              subType = 'SIGNAL_UPDATE';
+              notificationData.updateMessage = updateBody.notes || updateBody.report || `Status changed to ${updateBody.status}`;
+          }
+
+          if (subType) {
+              await redisClient.publish('signals', JSON.stringify({
+                  ...notificationData,
+                  subType
+              }));
+              logger.info(`Published ${subType} notification for signal ${signalId}`);
+          }
+
       } catch (e) {
-          logger.error('Failed to emit socket event for update signal', e);
+          logger.error('Failed to emit socket/redis event for update signal', e);
       }
   }
 

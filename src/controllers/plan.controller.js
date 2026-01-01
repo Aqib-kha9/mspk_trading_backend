@@ -10,8 +10,9 @@ const createPlan = catchAsync(async (req, res) => {
 
 const getPlans = catchAsync(async (req, res) => {
   const filter = { isActive: true };
-  if (req.query.role === 'admin') {
-      delete filter.isActive; // Admin sees all
+  // Check if user is admin (req.user is set by auth middleware)
+  if (req.user && req.user.role === 'admin') {
+      delete filter.isActive;
   }
   const plans = await planService.queryPlans(filter);
   res.send(plans);

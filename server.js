@@ -6,6 +6,7 @@ import { initSocket } from './src/services/socket.service.js';
 import { connectRedis } from './src/services/redis.service.js';
 import strategyService from './src/services/strategy.service.js';
 import signalMonitor from './src/services/signal.monitor.js';
+import schedulerService from './src/services/scheduler.service.js';
 
 const startServer = async () => {
   try {
@@ -24,6 +25,7 @@ const startServer = async () => {
     initSocket(server);
     strategyService.startEngine();
     signalMonitor.start(); // Start Auto-TP/SL Monitor
+    schedulerService.initScheduler();
 
     // Handle signals for graceful shutdown
     const exitHandler = () => {

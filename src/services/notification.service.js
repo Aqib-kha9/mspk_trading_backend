@@ -2,6 +2,8 @@ import { Queue } from 'bullmq';
 import config from '../config/config.js';
 import logger from '../config/logger.js';
 import { redisSubscriber } from './redis.service.js';
+import Notification from '../models/Notification.js';
+import User from '../models/User.js';
 
 const connection = {
   host: config.redis.host,
@@ -100,10 +102,105 @@ class NotificationService {
 
           await Promise.all(promises.flat());
           
+
+          // Step C: Create In-App Notifications for all eligible users
+          const notificationDocs = Array.from(eligibleUserIds).map(userId => ({
+              user: userId,
+              title: `New Signal: ${signal.symbol}`,
+              message: `Action: ${signal.type} | Entry: ${signal.entryPrice}`,
+              type: 'SIGNAL',
+              data: { signalId: signal._id },
+              link: `/signals` // Or specific ID
+          }));
+
+          if (notificationDocs.length > 0) {
+              await Notification.insertMany(notificationDocs);
+          }
+
           logger.info(`Scheduled notifications for Signal ${signal._id} to ${eligibleUserIds.size} users`);
 
       } catch (error) {
           logger.error('Failed to schedule notifications', error);
+      }
+  }
+
+  async scheduleAnnouncementNotifications(announcement) {
+      try {
+          const { targetAudience, title, message } = announcement;
+          const query = { status: 'Active' };
+
+          // Audience Filtering
+          if (targetAudience && targetAudience.role !== 'all') {
+             // Handle 'sub-broker' or specific roles
+             // Note: frontend sends 'sub-broker', schema is 'sub-broker' or 'user' etc.
+             // If role is simply the string, use it.
+             query.role = targetAudience.role;
+          }
+
+          const users = await User.find(query).select('_id name fcmTokens');
+          
+          if (users.length === 0) {
+              logger.info('No users found for announcement broadcast');
+              return;
+          }
+
+          logger.info(`Scheduling announcement push for ${users.length} users`);
+
+          const promises = users.map(user => {
+              // Only schedule if user has FCM tokens (optimization)
+              if (user.fcmTokens && user.fcmTokens.length > 0) {
+                  return notificationQueue.add('send-push-announcement', {
+                      type: 'push',
+                      userId: user._id,
+                      announcement: {
+                          title,
+                          message
+                      }
+                  }, { removeOnComplete: true });
+              }
+              return Promise.resolve();
+          });
+
+          await Promise.all(promises);
+
+          // Save In-App Notifications
+          const notificationDocs = users.map(user => ({
+              user: user._id,
+              title: title,
+              message: message,
+              type: 'ANNOUNCEMENT',
+              isRead: false
+          }));
+
+          if (notificationDocs.length > 0) {
+              await Notification.insertMany(notificationDocs);
+          }
+
+          logger.info(`Broadcasted announcement ${announcement._id} to ${users.length} potential users`);
+
+      } catch (error) {
+          logger.error('Failed to schedule announcement notifications', error);
+      }
+  }
+  async sendPlanExpiryReminder(user, daysLeft) {
+      try {
+          const planName = user.subscription?.plan?.name || 'Subscription';
+          
+          await notificationQueue.add('send-push-reminder', {
+              type: 'push',
+              userId: user._id,
+              announcement: {
+                  type: 'REMINDER', // Triggers PLAN_EXPIRY_REMINDER template
+                  planName,
+                  daysLeft,
+                  // Fallback values for ANNOUNCEMENT template if switch fails
+                  title: 'Plan Expiry',
+                  message: `Your ${planName} plan expires in ${daysLeft} days.`
+              }
+          }, { removeOnComplete: true });
+
+      } catch (error) {
+          logger.error(`Failed to schedule expiry reminder for user ${user._id}`, error);
       }
   }
 }

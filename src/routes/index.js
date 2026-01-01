@@ -11,6 +11,13 @@ import settingRoute from './setting.route.js';
 import marketRoute from './market.route.js';
 import ticketRoute from './ticket.route.js';
 import analyticsRoute from './analytics.route.js';
+import announcementRoute from './announcement.route.js';
+import economicRoute from './economic.route.js';
+import cmsRoute from './cms.route.js';
+
+import healthRoute from './health.route.js';
+import notificationRoute from './notification.route.js';
+import searchRoute from './search.route.js';
 
 const router = express.Router();
 
@@ -18,6 +25,10 @@ const defaultRoutes = [
   {
     path: '/auth',
     route: authRoute,
+  },
+  {
+      path: '/health',
+      route: healthRoute,
   },
   {
     path: '/strategies',
@@ -62,6 +73,26 @@ const defaultRoutes = [
   {
     path: '/analytics',
     route: analyticsRoute,
+  },
+  {
+    path: '/announcements',
+    route: announcementRoute,
+  },
+  {
+    path: '/economic-calendar',
+    route: economicRoute,
+  },
+  {
+    path: '/cms',
+    route: cmsRoute,
+  },
+  {
+    path: '/notifications',
+    route: notificationRoute,
+  },
+  {
+    path: '/search',
+    route: searchRoute,
   },
 ];
 

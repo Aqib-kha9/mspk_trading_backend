@@ -5,8 +5,12 @@ import settingController from '../../controllers/setting.controller.js';
 const router = express.Router();
 
 router
-  .route('/:key')
-  .get(auth('managePlans'), settingController.getSetting) // Reusing 'managePlans' permission as it fits context
-  .post(auth('managePlans'), settingController.updateSetting);
+  .route('/')
+  .get(auth('managePlans'), settingController.getSettings)
+  .patch(auth('managePlans'), settingController.updateSetting);
+
+router
+  .route('/bulk')
+  .put(auth('managePlans'), settingController.updateBulkSettings);
 
 export default router;

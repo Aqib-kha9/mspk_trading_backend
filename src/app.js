@@ -8,10 +8,14 @@ import routes from './routes/index.js';
 const app = express();
 
 // Middleware
+app.use(cors({
+  origin: true, // Reflects the request origin
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(helmet());
-app.use(cors());
+// app.use(helmet()); // Temporarily disabled to debug 308 Redirects
+// app.use(cors()); // Moved to top
 
 // Logger
 if (config.env === 'development') {

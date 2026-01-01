@@ -9,15 +9,18 @@ let io;
 const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: '*', // Adjust for production
+      origin: ["http://localhost:5173", "http://localhost:3000", "*"], 
       methods: ['GET', 'POST'],
+      credentials: true
     },
   });
 
   // Middleware for Auth
   io.use((socket, next) => {
     try {
-        if (socket.handshake.query && socket.handshake.query.token) {
+        const token = socket.handshake.query.token;
+        
+        if (token && token !== 'null' && token !== 'undefined') {
         jwt.verify(socket.handshake.query.token, config.jwt.secret, (err, decoded) => {
             if (err) {
                 logger.error(`Socket Auth Failed: ${err.message}`);

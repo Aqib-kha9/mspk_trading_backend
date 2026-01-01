@@ -88,7 +88,6 @@ const userSchema = new mongoose.Schema(
     subscription: {
       plan: {
         type: String,
-        enum: ['free', 'pro', 'enterprise'], // Legacy
         default: 'free',
       },
       expiresAt: Date,

@@ -6,6 +6,7 @@ import Setting from '../models/Setting.js';
 import telegramService from '../services/channels/telegram.service.js';
 import whatsappService from '../services/channels/whatsapp.service.js';
 import pushService from '../services/channels/push.service.js';
+import templates from '../config/notificationTemplates.js';
 
 const connection = {
   host: config.redis.host,
@@ -13,12 +14,13 @@ const connection = {
 };
 
 const notificationWorker = new Worker('notifications', async (job) => {
-  const { type, signal, userId } = job.data;
+  const { type, signal, announcement, userId } = job.data;
   
   try {
       // Fetch System Settings
+      // Fetch System Settings
       const settings = await Setting.find({ 
-          key: { $in: ['telegram_config', 'whatsapp_config', 'push_config'] } 
+          key: { $in: ['telegram_config', 'whatsapp_config', 'push_config', 'notification_templates'] } 
       });
       
       const getSetting = (key) => {
@@ -26,19 +28,73 @@ const notificationWorker = new Worker('notifications', async (job) => {
           return s ? s.value : null;
       };
 
+      const dbTemplates = getSetting('notification_templates') || {};
+      const activeTemplates = { ...templates, ...dbTemplates };
+
       const user = await User.findById(userId);
-      // For broadcast signals (userId might be null if it's a system broadcast), handle separately.
-      // Assuming signal.user is the CREATOR. 
-      // Current logic: Notifications are for specific users (e.g. Signal Alert to Subscriber).
-      // IF type is 'broadcast', we iterate all users? Or BullMQ jobs are per user?
-      // Assuming 'notification.service.js' schedules jobs per user.
       
       if (!user) {
           logger.warn(`User ${userId} not found for notification`);
           return;
       }
 
-      const message = `🚀 ${signal.type} ALERT: ${signal.symbol}\n\nPrice: ${signal.entryPrice}\nSL: ${signal.stopLoss}\nTarget: ${signal.targets?.target1}`;
+      const renderTemplate = (templateKey, data) => {
+          const template = activeTemplates[templateKey] || activeTemplates.ANNOUNCEMENT;
+          let title = template.title;
+          let body = template.body;
+
+          // Simple variable replacement
+          Object.keys(data).forEach(key => {
+              const regex = new RegExp(`{{${key}}}`, 'g');
+              const val = data[key] !== undefined ? data[key] : '';
+              title = title.replace(regex, val);
+              body = body.replace(regex, val);
+          });
+          return { title, body };
+      };
+
+      let title = 'Notification';
+      let message = '';
+      
+      if (signal) {
+          // Flatten signal data for template
+          const data = {
+              symbol: signal.symbol,
+              type: signal.type,
+              entryPrice: signal.entryPrice,
+              stopLoss: signal.stopLoss,
+              target1: signal.targets?.target1 || '-',
+              target2: signal.targets?.target2 || '-',
+              
+              // For Update/Target
+              updateMessage: signal.updateMessage || '',
+              targetLevel: signal.targetLevel || 'TP1',
+              currentPrice: signal.currentPrice || signal.entryPrice // fallback
+          };
+          
+          // Use subType passed from publisher (SIGNAL_NEW, SIGNAL_UPDATE, SIGNAL_TARGET, SIGNAL_STOPLOSS)
+          const templateKey = signal.subType || 'SIGNAL_NEW';
+          
+          const rendered = renderTemplate(templateKey, data);
+          title = rendered.title;
+          message = rendered.body;
+      } else if (announcement) {
+          // Determine subtype
+          let templateKey = 'ANNOUNCEMENT';
+          if (announcement.type === 'ECONOMIC') templateKey = 'ECONOMIC_ALERT';
+          if (announcement.type === 'REMINDER') templateKey = 'PLAN_EXPIRY_REMINDER';
+          
+          // Add helper fields if missing
+          // e.g. for REMINDER, we might need planName/daysLeft. 
+          // If these are passed in 'announcement' object (even if not in DB schema but passed in payload), we use them.
+          
+          const rendered = renderTemplate(templateKey, announcement);
+          title = rendered.title;
+          message = rendered.body;
+      } else {
+          logger.warn('Unknown notification payload');
+          return;
+      }
 
       if (type === 'telegram') {
           const teleConfig = getSetting('telegram_config');
@@ -65,7 +121,7 @@ const notificationWorker = new Worker('notifications', async (job) => {
                   await pushService.sendPushNotification(
                       pushConfig.fcmServerKey, 
                       user.fcmTokens, 
-                      `Target Hit: ${signal.symbol}`, 
+                      title, 
                       message
                   );
               }

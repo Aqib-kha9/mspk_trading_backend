@@ -6,6 +6,7 @@ import Plan from '../models/Plan.js';
 import ApiError from '../utils/ApiError.js';
 import { redisClient } from '../services/redis.service.js';
 import transactionService from '../services/transaction.service.js';
+import { subBrokerService } from '../services/index.js';
 
 const createUser = catchAsync(async (req, res) => {
     console.log("Create User Payload:", JSON.stringify(req.body, null, 2)); // DEBUG LOG
@@ -57,6 +58,20 @@ const createUser = catchAsync(async (req, res) => {
                 endDate,
                 transaction: transaction.id
             });
+
+            // Trigger Commission Record
+            try {
+                await subBrokerService.recordCommission(transaction, user, plan);
+            } catch (err) {
+                console.error("Commission Recording Failed:", err);
+            }
+
+            // Update legacy user subscription field for consistency
+            user.subscription = {
+                plan: plan.name,
+                expiresAt: endDate
+            };
+            await user.save();
         }
     }
 
@@ -122,11 +137,11 @@ const getUser = catchAsync(async (req, res) => {
       role: user.role,
       
       // Subscription / Plan Data
-      plan: sub ? sub.plan.name : 'Free', 
+      plan: (sub && sub.plan) ? sub.plan.name : 'Free', 
       planStatus: sub ? 'Active' : 'Inactive',
       subscriptionStart: sub ? sub.startDate : null,
       subscriptionExpiry: sub ? sub.endDate : null,
-      planPrice: sub ? sub.plan.price : 0,
+      planPrice: (sub && sub.plan) ? sub.plan.price : 0,
 
       // Broker Data
       subBrokerId: user.subBrokerId ? user.subBrokerId._id : null,

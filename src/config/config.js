@@ -25,4 +25,5 @@ export default {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   },
+  fmpApiKey: process.env.FMP_API_KEY,
 };

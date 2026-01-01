@@ -9,12 +9,9 @@ router.use(auth(['admin']));
 
 router
   .route('/')
-  .get(settingController.getSettings);
+  .get(settingController.getSettings)
+  .patch(settingController.updateSetting);
 
 router.put('/bulk', settingController.updateBulkSettings);
-
-router
-  .route('/:key')
-  .patch(settingController.updateSetting);
 
 export default router;
