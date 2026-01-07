@@ -6,10 +6,9 @@ import signalController from '../controllers/signal.controller.js';
 
 const router = express.Router();
 
-router.use(auth());
-
-// Public (to authenticated users)
-router.get('/', signalController.getSignals);
+// Public (Optional Auth: Guests see Free/Closed, Users see based on sub)
+import optionalAuth from '../middleware/optionalAuth.js';
+router.get('/', optionalAuth(), signalController.getSignals);
 
 // Admin Only
 router.post('/', auth(['admin']), validate(signalValidation.createSignal), signalController.createSignal);

@@ -13,15 +13,23 @@ const getSignals = catchAsync(async (req, res) => {
   const { page = 1, limit = 10, search, status, segment } = req.query;
 
   // 1. Build Base Filter (Permissions)
-  if (req.user.role !== 'admin') {
-      const subs = await subscriptionService.getUserSubscriptions(req.user.id);
-      const activeSegments = subs
-        .filter(s => s.status === 'active')
-        .map(s => s.plan.segment);
+  if (!req.user || req.user.role !== 'admin') {
+      let activeSegments = [];
+      
+      // If user is logged in, fetch their subscriptions
+      if (req.user) {
+          const subs = await subscriptionService.getUserSubscriptions(req.user.id);
+          activeSegments = subs
+            .filter(s => s.status === 'active')
+            .map(s => s.plan.segment);
+      }
 
+      // Filter: Free OR Subscribed Segment OR Closed (History/SEO)
+      // Note: "Closed" signals are visible to everyone for SEO/Performance proof
       filter = {
           $or: [
               { isFree: true },
+              { status: 'Closed' },
               { segment: { $in: activeSegments } }
           ]
       };

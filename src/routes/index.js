@@ -18,10 +18,15 @@ import cmsRoute from './cms.route.js';
 import healthRoute from './health.route.js';
 import notificationRoute from './notification.route.js';
 import searchRoute from './search.route.js';
+import leadRoute from './lead.route.js';
 
 const router = express.Router();
 
 const defaultRoutes = [
+  {
+    path: '/leads',
+    route: leadRoute,
+  },
   {
     path: '/auth',
     route: authRoute,
