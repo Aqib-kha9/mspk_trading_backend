@@ -9,7 +9,7 @@ let io;
 const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: ["http://localhost:5173", "http://localhost:3000", "*"], 
+      origin: [config.frontendUrl, "http://localhost:5173", "http://localhost:3000", "*"], 
       methods: ['GET', 'POST'],
       credentials: true
     },

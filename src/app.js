@@ -22,6 +22,10 @@ if (config.env === 'development') {
   app.use(morgan('dev'));
 }
 
+// Direct Route for Fyers Login Callback to match User's App Config (No /v1)
+import marketController from './controllers/market.controller.js';
+app.get('/market/login/fyers', marketController.handleLoginCallback);
+
 // Routes
 app.use('/v1', routes);
 

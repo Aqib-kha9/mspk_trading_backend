@@ -20,7 +20,10 @@ router.patch('/symbols/:id', marketController.updateSymbol);
 router.delete('/symbols/:id', marketController.deleteSymbol);
 
 router.get('/stats', marketController.getMarketStats); // New Stats Route
-router.post('/login/:provider', marketController.handleLogin); // Generic Login Endpoint
+router.post('/login/:provider', marketController.handleLogin); // JSON Payload Login
+router.get('/login/:provider', marketController.handleLoginCallback); // Browser Redirect Callback
 router.get('/login/:provider/url', marketController.getLoginUrl); // Generic Login URL
+router.get('/history', marketController.getHistory);
+router.get('/search', marketController.searchInstruments);
 
 export default router;

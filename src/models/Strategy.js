@@ -64,6 +64,14 @@ const strategySchema = new mongoose.Schema(
       enum: ['Active', 'Paused', 'Archived'],
       default: 'Paused'
     },
+    isSystem: {
+      type: Boolean,
+      default: false
+    },
+    isDefault: {
+      type: Boolean,
+      default: false
+    },
   },
   {
     timestamps: true,

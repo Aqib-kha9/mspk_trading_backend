@@ -7,6 +7,7 @@ import { connectRedis } from './src/services/redis.service.js';
 import strategyService from './src/services/strategy.service.js';
 import signalMonitor from './src/services/signal.monitor.js';
 import schedulerService from './src/services/scheduler.service.js';
+import hybridStrategyService from './src/services/hybridStrategy.service.js';
 
 const startServer = async () => {
   try {
@@ -23,7 +24,9 @@ const startServer = async () => {
 
     // 4. Initialize Background Services
     initSocket(server);
+    await strategyService.seedStrategies(); // Ensure default strategies exist
     strategyService.startEngine();
+    hybridStrategyService.start();
     signalMonitor.start(); // Start Auto-TP/SL Monitor
     schedulerService.initScheduler();
 

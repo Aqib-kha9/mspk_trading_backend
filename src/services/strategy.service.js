@@ -126,8 +126,45 @@ const triggerSignal = async (strategy, tick) => {
 // Export refreshCache too so Controllers can call it on update
 export const reloadStrategies = refreshCache;
 
+const seedStrategies = async (user = null) => {
+    const hybrid = await Strategy.findOne({ name: 'Hybrid Strategy', isSystem: true });
+    if (!hybrid) {
+         let userId = user?.id;
+         if (!userId) {
+             const User = (await import('../models/User.js')).default;
+             const admin = await User.findOne({ role: 'admin' });
+             userId = admin?._id;
+         }
+
+         if (userId) {
+            await Strategy.create({
+                user: userId,
+                name: 'Hybrid Strategy',
+                symbol: 'NSE:NIFTYBANK-INDEX',
+                timeframe: '5m',
+                segment: 'FNO',
+                status: 'Active',
+                isSystem: true,
+                isDefault: true,
+                logic: {
+                    condition: 'AND',
+                    rules: [
+                        { indicator: 'Supertrend', params: { period: 10, multiplier: 3 }, operator: 'CROSS_ABOVE', value: 0 },
+                        { indicator: 'PSAR', params: { step: 0.02, max: 0.2 }, operator: '<', value: 'CLOSE' }
+                    ]
+                }
+            });
+            logger.info('✅ Hybrid Strategy seeded successfully');
+         } else {
+             logger.warn('⚠️ Could not find an admin user to assign Hybrid Strategy');
+         }
+    }
+    return { success: true };
+};
+
 export default {
     startEngine,
     stopEngine,
-    reloadStrategies: refreshCache
+    reloadStrategies: refreshCache,
+    seedStrategies
 };

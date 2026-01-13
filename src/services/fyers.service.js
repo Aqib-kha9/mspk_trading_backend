@@ -1,8 +1,7 @@
 import fyers from 'fyers-api-v3';
 import logger from '../config/logger.js';
-
 // Fyers API V3 Base URL (handled by SDK mostly)
-const FYERS_BASE_URL = 'https://api.fyers.in/api/v3';
+const FYERS_BASE_URL = 'https://api-t1.fyers.in/api/v3';
 
 class FyersService {
     constructor() {
@@ -22,7 +21,6 @@ class FyersService {
 
     /**
      * Initialize service
-     * For Fyers, AppID usually includes Type e.g. "XC12345-100"
      */
     initialize(appId, secretId, redirectUri) {
         if (!appId || !secretId) {
@@ -31,9 +29,6 @@ class FyersService {
         this.appId = appId;
         this.secretId = secretId;
         if (redirectUri) this.redirectUri = redirectUri;
-        
-        // Fyers SDK might not need instantiation for just generating URL, 
-        // but let's prepare state.
         logger.info('FyersService initialized');
     }
 
@@ -41,8 +36,6 @@ class FyersService {
      * Get Login URL
      */
     getLoginUrl() {
-        // Fyers Login URL Structure
-        // https://api.fyers.in/api/v3/generate-authcode?client_id=client_id&redirect_uri=redirect_uri&response_type=code&state=state_value
         return `${FYERS_BASE_URL}/generate-authcode?client_id=${this.appId}&redirect_uri=${encodeURIComponent(this.redirectUri)}&response_type=code&state=somerandomstate`;
     }
 
@@ -53,41 +46,7 @@ class FyersService {
         if (!this.appId || !this.secretId) throw new Error('FyersService not initialized');
 
         try {
-            // Using SDK or Raw Fetch. SDK is cleaner if installed.
-            // fyers.generate_access_token({ client_id, secret_key, auth_code, grant_type="authorization_code" })
-            
-            // Note: fyers-api-v3 import usage varies. Assuming standard export.
-            // If SDK fails, fallback to fetch.
-            
-            const reqBody = {
-                client_id: this.appId, // Must be AppIDHash or ClientID? Usually ClientID.
-                secret_key: this.secretId,
-                auth_code: authCode,
-                grant_type: 'authorization_code' 
-            };
-            
-            // Note: Fyers V3 SDK often requires a "History" object or similar instantiation.
-            // For safety, I'll use raw fetch for the token to avoid SDK version mismatch issues blindly.
-            
-            const response = await fetch(`${FYERS_BASE_URL}/validate-authcode`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    grant_type: "authorization_code",
-                    appIdHash: await this.getAppIdHash(), // Fyers specific: SHA256(clientId + ":" + secret)
-                    code: authCode
-                })
-            });
-            
-            // Wait, Fyers validation is tricky. 
-            // Better to use the npm package helper if it works. 
-            // "fyers-api-v3" isn't fully standard in how it's imported in some environments.
-            
-            // Let's assume standard REST for stability if SDK is unknown:
-            // Docs: POST https://api.fyers.in/api/v3/validate-authcode
-            // Body: { grant_type, appIdHash, code }
-            
-            // AppIdHash generation:
+            // Using raw fetch for stability
             const crypto = (await import('crypto')).default;
             const appIdHash = crypto.createHash('sha256').update(`${this.appId}:${this.secretId}`).digest('hex');
 
@@ -116,14 +75,53 @@ class FyersService {
         }
     }
     
-    // Helper since we are checking hash inside generateSession
-    async getAppIdHash() {
-        // ... (implemented inline above)
-        return ''; 
-    }
-
     setAccessToken(token) {
         this.accessToken = token;
+    }
+
+    /**
+     * Fetch Quotes (LTP, Close, etc) for a list of symbols
+     * symbols: Array of strings e.g. ["NSE:SBIN-EQ", "MCX:CRUDEOIL24JANFUT"]
+     */
+    async getQuotes(symbols) {
+        if (!this.accessToken) throw new Error('No access token');
+        
+        // Fyers Quote API expects comma separated string
+        // API limit 50 symbols per call? Need to batch if large.
+        // Assuming small batch for now.
+        // Endpoint: POST https://api.fyers.in/data/quotes
+        
+        try {
+            const symString = symbols.join(',');
+            const res = await fetch(`https://api.fyers.in/data/quotes?symbols=${symString}`, {
+                method: 'GET', // Wait, usually GET or POST? Docs say GET with query param for fewer symbols
+                headers: {
+                    'Authorization': `${this.appId}:${this.accessToken}`
+                }
+            });
+            
+            const data = await res.json();
+            if (data.s !== 'ok') {
+                logger.error('Fyers Quote Error', data);
+                return {};
+            }
+            
+            // Map Response: [{n: 'NSE:SBIN-EQ', v: { lp: 100, ... } }]
+            // Return map: { 'NSE:SBIN-EQ': 100 }
+            const result = {};
+            data.d.forEach(item => {
+                const sym = item.n;
+                // Prefer Last Price (lp) or Previous Close (prev_close_price)?
+                // Users want LTP mostly. If Market Closed, LTP is the Closing Price.
+                result[sym] = item.v.lp; 
+            });
+            
+            return result;
+            
+        } catch (error) {
+            logger.error('Error fetching Fyers quotes', error);
+            return {};
+        }
     }
 
     /**
@@ -134,33 +132,150 @@ class FyersService {
             logger.error('Cannot connect ticker: Missing access token');
             return;
         }
-        
-        // Use SDK for Socket ideally as it handles parsing
-        /* 
-        fyers.fyers_connect(this.accessToken);
-        fyers.on("connect", ...) 
-        */
-       
-       // Placeholder for now
-       logger.info('Fyers Ticker Connecting (Placeholder)...');
-       this.isTickerConnected = true;
-       if (onConnectCallback) onConnectCallback();
+
+        try {
+            const authStr = this.accessToken; // V3 DataSocket takes just the access token
+            
+            // Log path is optional, second arg.
+            this.fyersSocket = new fyers.fyersDataSocket(authStr);
+            
+            // Handlers
+            this.fyersSocket.on("connect", () => {
+                this.isTickerConnected = true;
+                logger.info('✅ Fyers Websocket Connected');
+                if (onConnectCallback) onConnectCallback();
+                
+                // Resubscribe if needed
+                if (this.subscriptions.length > 0) {
+                     this.subscribe(this.subscriptions);
+                }
+            });
+
+            this.fyersSocket.on("message", (msg) => {
+                // Fyers V3 Data Socket Message Structure
+                // msg is usually JSON object or array
+                // Example: { type: 'sf', symbol: 'NSE:SBIN-EQ', code: 200, ... }
+                // Or if multiple? 
+                // Let's assume standard handling. 
+                // Note: fyers-api-v3 docs say msg is the tick object directly.
+                
+                if (onTickCallback) {
+                     // Check if it's an array or single object
+                     const dataArray = Array.isArray(msg) ? msg : [msg];
+                     
+                     // Filter only "sf" (Symbol Refresh) or "if" (Index Refresh) or similar
+                     // V3 types: sf, if, dp, etc.
+                     // Mapping to standardized tick format
+                     
+                     const ticks = dataArray.map(m => {
+                         // Check valid packet
+                         if (!m.symbol) return null;
+                         
+                         return {
+                            symbol: m.symbol, 
+                            last_price: m.ltp || m.lp, // ltp is common
+                            change: m.ch,
+                            change_percent: m.chp,
+                            volume: m.vol,
+                            // Add extra fields if needed
+                            high: m.high,
+                            low: m.low
+                         };
+                     }).filter(t => t !== null);
+                     
+                     if (ticks.length > 0) onTickCallback(ticks);
+                }
+            });
+
+            this.fyersSocket.on("error", (err) => {
+                logger.error("Fyers Socket Error", err);
+                this.isTickerConnected = false;
+            });
+            
+            this.fyersSocket.on("close", () => {
+                logger.warn("Fyers Socket Closed");
+                this.isTickerConnected = false;
+            });
+
+            // Connect
+             this.fyersSocket.connect(); 
+             
+             // Keep Alive? SDK handles it usually.
+
+        } catch (e) {
+            logger.error('Failed to init Fyers Socket', e);
+        }
     }
 
     subscribe(tokens) {
-        if (!this.isTickerConnected) {
-             this.subscriptions = [...this.subscriptions, ...tokens];
+        if (!this.fyersSocket || !this.isTickerConnected) {
+             this.subscriptions = [...new Set([...this.subscriptions, ...tokens])];
              return;
         }
         
-        // Fyers: {"symbols":"NSE:SBIN-EQ,NSE:TCS-EQ"}
-        // Need to map tokens to symbols? 
-        // Fyers uses Symbols (NSE:SBIN-EQ), not Instrument Tokens usually.
-        // This is a mapping challenge handled in MarketDataService.
-        logger.info(`Fyers Subscribe: ${tokens.length}`);
+        // Fyers SDK subscribe expects array of symbols
+        // tokens here are expected to be symbols e.g. "NSE:SBIN-EQ"
+        // fyersSocket.subscribe(symbols)
+        
+        // Filter valid strings
+        const validSyms = tokens.filter(t => typeof t === 'string' && t.includes(':'));
+        
+        if (validSyms.length > 0) {
+            this.fyersSocket.subscribe(validSyms);
+            logger.info(`Fyers Subscribed to ${validSyms.length} symbols`);
+        }
     }
     
-    unsubscribe(tokens) {}
+    unsubscribe(tokens) {
+        if (this.fyersSocket && this.isTickerConnected) {
+             this.fyersSocket.unsubscribe(tokens);
+        }
+    }
+
+    /**
+     * Fetch History (OHLC) for a symbol
+     * symbol: e.g. "NSE:SBIN-EQ"
+     * resolution: e.g. "5" (mins)
+     * from: yyyy-mm-dd
+     * to: yyyy-mm-dd
+     */
+    async getHistory(symbol, resolution = '5', from, to) {
+        if (!this.accessToken) throw new Error('No access token');
+
+        try {
+            // Docs: https://api.fyers.in/data/history-v3
+            // Base URL already includes /api/v3 in some contexts but history might use just api.fyers.in
+            const url = `https://api-t1.fyers.in/data/history-v3?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
+            
+            const res = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `${this.appId}:${this.accessToken}`
+                }
+            });
+
+            const data = await res.json();
+            if (data.s !== 'ok') {
+                logger.error('Fyers History Error', data);
+                return [];
+            }
+
+            // Data Structure: [[epoch, o, h, l, c, v], ...]
+            // Map to: [{time, open, high, low, close, volume}]
+            return data.candles.map(c => ({
+                time: c[0],
+                open: c[1],
+                high: c[2],
+                low: c[3],
+                close: c[4],
+                volume: c[5]
+            }));
+
+        } catch (error) {
+            logger.error('Error fetching Fyers history', error);
+            return [];
+        }
+    }
 }
 
 export const fyersService = new FyersService();

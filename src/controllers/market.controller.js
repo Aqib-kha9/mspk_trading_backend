@@ -18,14 +18,14 @@ const SEED_SEGMENTS = [
 ];
 
 const SEED_SYMBOLS = [
-    { symbol: 'NIFTY 50', name: 'Nifty 50 Index', segment: 'FNO', exchange: 'NSE', lotSize: 50 },
-    { symbol: 'BANKNIFTY', name: 'Nifty Bank Index', segment: 'FNO', exchange: 'NSE', lotSize: 15 },
-    { symbol: 'FINNIFTY', name: 'Nifty Fin Services', segment: 'FNO', exchange: 'NSE', lotSize: 40 },
-    { symbol: 'RELIANCE', name: 'Reliance Industries', segment: 'EQUITY', exchange: 'NSE', lotSize: 1 },
-    { symbol: 'TCS', name: 'Tata Consultancy Svcs', segment: 'EQUITY', exchange: 'NSE', lotSize: 1 },
-    { symbol: 'CRUDEOIL', name: 'Crude Oil Futures', segment: 'COMMODITY', exchange: 'MCX', lotSize: 100 },
-    { symbol: 'GOLD', name: 'Gold Futures', segment: 'COMMODITY', exchange: 'MCX', lotSize: 100 },
-    { symbol: 'USDINR', name: 'USD INR', segment: 'CURRENCY', exchange: 'CDS', lotSize: 1000 },
+    { symbol: 'NSE:NIFTY50-INDEX', name: 'Nifty 50 Index', segment: 'FNO', exchange: 'NSE', lotSize: 50 },
+    { symbol: 'NSE:NIFTYBANK-INDEX', name: 'Nifty Bank Index', segment: 'FNO', exchange: 'NSE', lotSize: 15 },
+    { symbol: 'NSE:FINNIFTY-INDEX', name: 'Nifty Fin Services', segment: 'FNO', exchange: 'NSE', lotSize: 40 },
+    { symbol: 'NSE:RELIANCE-EQ', name: 'Reliance Industries', segment: 'EQUITY', exchange: 'NSE', lotSize: 1 },
+    { symbol: 'NSE:TCS-EQ', name: 'Tata Consultancy Svcs', segment: 'EQUITY', exchange: 'NSE', lotSize: 1 },
+    { symbol: 'MCX:CRUDEOIL24JANFUT', name: 'Crude Oil Futures', segment: 'COMMODITY', exchange: 'MCX', lotSize: 100 },
+    { symbol: 'MCX:GOLD24FEBVAR', name: 'Gold Futures', segment: 'COMMODITY', exchange: 'MCX', lotSize: 100 },
+    { symbol: 'CDS:USDINR24JANFUT', name: 'USD INR', segment: 'CURRENCY', exchange: 'CDS', lotSize: 1000 },
 ];
 
 const seedMarketData = catchAsync(async (req, res) => {
@@ -151,6 +151,36 @@ const handleLogin = catchAsync(async (req, res) => {
     }
 });
 
+const handleLoginCallback = catchAsync(async (req, res) => {
+    const { provider } = req.params;
+    console.log(`\n--- CALLBACK RECEIVED [${provider}] ---`);
+    console.log('Original URL:', req.originalUrl);
+    console.log('Query Params:', req.query);
+
+    const { code, request_token, auth_code } = req.query; // standard oauth params
+    
+    const finalCode = code || request_token || auth_code;
+    
+    if (!finalCode) {
+        console.error('❌ Missing Code in Query params');
+        return res.status(httpStatus.BAD_REQUEST).send(`
+            <h1>Login Failed</h1>
+            <p>No 'code' found in URL.</p>
+            <p>Debug Data:</p>
+            <pre>${JSON.stringify(req.query, null, 2)}</pre>
+            <p>Ensure you did not remove parameters from the URL.</p>
+        `);
+    }
+
+    try {
+        await marketDataService.handleLogin(provider, { code: finalCode, request_token: finalCode });
+        res.send('<h1>Login Successful!</h1><p>Token Generated. You can close this window.</p>');
+    } catch (error) {
+        console.error('Login Handling Error:', error);
+        res.status(httpStatus.INTERNAL_SERVER_ERROR).send(`Login Failed: ${error.message}`);
+    }
+});
+
 const getLoginUrl = catchAsync(async (req, res) => {
     const { provider } = req.params;
     
@@ -185,12 +215,29 @@ const getLoginUrl = catchAsync(async (req, res) => {
     // We will hardcode `http://localhost:5173/market/login/${provider}` (Frontend Route) as redirect.
     // OR backend route? Usually frontend receives code and POSTs to backend.
     
-    const frontendCallback = `http://localhost:5173/market/login/${provider}`; // Frontend Page
+    const frontendCallback = `${config.frontendUrl}/market/login/${provider}`; // Frontend Page
     
     adapter.initialize(apiKey, apiSecret, frontendCallback);
 
     const url = adapter.getLoginUrl();
     res.send({ url });
+});
+
+const getHistory = catchAsync(async (req, res) => {
+    const { symbol, resolution, from, to } = req.query;
+    
+    if (!symbol || !resolution || !from || !to) {
+        return res.status(httpStatus.BAD_REQUEST).send({ message: 'Missing required parameters: symbol, resolution, from, to' });
+    }
+
+    const history = await marketDataService.getHistory(symbol, resolution, from, to);
+    res.send(history);
+});
+
+const searchInstruments = catchAsync(async (req, res) => {
+    const { q } = req.query;
+    const instruments = await marketDataService.searchInstruments(q);
+    res.send(instruments);
 });
 
 export default {
@@ -204,7 +251,10 @@ export default {
     updateSymbol,
     deleteSymbol,
     handleLogin,
+    handleLoginCallback,
     getLoginUrl,
+    getHistory,
+    searchInstruments,
     getMarketStats: (req, res) => {
         const stats = marketDataService.getStats();
         res.send(stats);

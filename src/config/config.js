@@ -10,6 +10,7 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 export default {
   env: process.env.NODE_ENV || 'development',
   port: process.env.PORT || 5000,
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   mongoose: {
     url: process.env.MONGO_URI || 'mongodb://localhost:27017/mspk_trading',
     options: {
@@ -26,4 +27,19 @@ export default {
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   },
   fmpApiKey: process.env.FMP_API_KEY,
+  useMockBroker: process.env.USE_MOCK_BROKER === 'true' || true, // Force true for now for user
+  fyers: {
+    appId: process.env.FYERS_APP_ID,
+    secretId: process.env.FYERS_SECRET_ID,
+    redirectUri: process.env.FYERS_REDIRECT_URI || 'http://localhost:3000/market/login/fyers',
+  },
+  kite: {
+    apiKey: process.env.KITE_API_KEY,
+    apiSecret: process.env.KITE_API_SECRET,
+  },
+  upstox: {
+    apiKey: process.env.UPSTOX_API_KEY,
+    apiSecret: process.env.UPSTOX_API_SECRET,
+    redirectUri: process.env.UPSTOX_REDIRECT_URI || 'http://localhost:3000/market/login/upstox',
+  },
 };

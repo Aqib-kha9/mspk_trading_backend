@@ -86,66 +86,57 @@ const fetchAndStoreEvents = async (from, to) => {
     
     const mockEvents = [];
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    
-    // 1. Generate some "Past" events for today
-    for(let i=1; i<=3; i++) {
-        const d = new Date(now);
-        d.setHours(now.getHours() - i);
-        
-        mockEvents.push({
-            date: d.toISOString(),
-            event: `Simulated Past Event ${i}`,
-            country: 'USD',
-            currency: 'USD',
-            impact: 'Medium',
-            estimate: '2.0%',
-            actual: '2.1%',
-            previous: '1.9%',
-            unit: '%'
-        });
-    }
+    // Generate for the requested range or default to +/- 3 days
+    const rangeStart = from ? new Date(from) : new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const rangeEnd = to ? new Date(to) : new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
-    // 2. Generate a "Future High Impact" event (Testing Alerts)
-    // Scheduled for 5 minutes from now to trigger the "15 min" lookahead logic immediately or soon
-    const upcomingEvent = new Date(now);
-    upcomingEvent.setMinutes(now.getMinutes() + 5); 
-    
-    mockEvents.push({
-        date: upcomingEvent.toISOString(),
-        event: 'Simulated CPI Data (High Impact)',
-        country: 'USD',
-        currency: 'USD',
-        impact: 'High',
-        estimate: '3.1%',
-        actual: '', // Pending
-        previous: '3.0%',
-        unit: '%'
-    });
+    const eventTemplates = [
+        { e: 'CPI (MoM)', c: 'USD', i: 'High', u: '%' },
+        { e: 'GDP Growth Rate', c: 'USD', i: 'High', u: '%' },
+        { e: 'Unemployment Rate', c: 'USD', i: 'High', u: '%' },
+        { e: 'Interest Rate Decision', c: 'EUR', i: 'High', u: '%' },
+        { e: 'Retail Sales', c: 'GBP', i: 'Medium', u: '%' },
+        { e: 'Balance of Trade', c: 'JPY', i: 'Medium', u: 'B' },
+        { e: 'PPI (YoY)', c: 'USD', i: 'Medium', u: '%' },
+        { e: 'Industrial Production', c: 'EUR', i: 'Low', u: '%' },
+        { e: 'Crude Oil Inventories', c: 'USD', i: 'High', u: 'M' },
+        { e: 'Manufacturing PMI', c: 'CNY', i: 'Medium', u: 'pts' }
+    ];
 
-    // 3. Generate events for coming days
-    for(let i=1; i<=5; i++) {
-        const d = new Date(now);
-        d.setDate(now.getDate() + i);
-        d.setHours(14, 0, 0);
+    // Generate events for each day in range
+    for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
+        // 3-5 events per day
+        const dailyCount = Math.floor(Math.random() * 3) + 3;
         
-        mockEvents.push({
-            date: d.toISOString(),
-            event: `Future Event Day ${i}`,
-            country: i % 2 === 0 ? 'EUR' : 'GBP',
-            currency: i % 2 === 0 ? 'EUR' : 'GBP',
-            impact: 'Low',
-            estimate: '',
-            actual: '',
-            previous: '',
-            unit: ''
-        });
+        for (let i = 0; i < dailyCount; i++) {
+            const template = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
+            const eventTime = new Date(d);
+            eventTime.setHours(9 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 4) * 15); // 9 AM to 5 PM
+            
+            // Randomize values slightly
+            const est = (Math.random() * 5).toFixed(1);
+            const act = Math.random() > 0.5 ? (Math.random() * 5).toFixed(1) : ''; // 50% chance of having actual data (past vs future)
+            const prev = (Math.random() * 5).toFixed(1);
+
+            mockEvents.push({
+                date: eventTime.toISOString(),
+                event: template.e,
+                country: template.c,
+                currency: template.c,
+                impact: template.i,
+                estimate: est + template.u,
+                actual: eventTime < now ? (Math.random() * 5).toFixed(1) + template.u : '', // Past events have actual
+                previous: prev + template.u,
+                unit: template.u
+            });
+        }
     }
 
     // Insert Mock Events
     let count = 0;
     for (const item of mockEvents) {
          const eventDate = new Date(item.date);
+         
          const filter = {
              date: eventDate,
              event: item.event,

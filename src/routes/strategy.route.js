@@ -9,6 +9,8 @@ router
   .post(auth(), strategyController.createStrategy)
   .get(auth(), strategyController.getStrategies);
 
+router.post('/seed', auth(), strategyController.seedStrategies);
+
 router
   .route('/:strategyId')
   .patch(auth(), strategyController.updateStrategy)
