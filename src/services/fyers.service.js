@@ -244,7 +244,9 @@ class FyersService {
 
         try {
             // Docs: https://api.fyers.in/data/history-v3
-            const url = `https://api.fyers.in/data/history-v3?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
+            const url = `https://api-t1.fyers.in/data/history-v3?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
+            
+            logger.info(`Fetching Fyers History: ${url}`);
             
             const res = await fetch(url, {
                 method: 'GET',

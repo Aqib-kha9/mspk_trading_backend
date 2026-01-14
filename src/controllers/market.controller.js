@@ -231,6 +231,7 @@ const getHistory = catchAsync(async (req, res) => {
         return res.status(httpStatus.BAD_REQUEST).send({ message: 'Missing required parameters: symbol, resolution, from, to' });
     }
 
+    logger.info(`History Request: ${symbol} (${resolution}) from ${from} to ${to}`);
     const history = await marketDataService.getHistory(symbol, resolution, from, to);
     res.send(history);
 });
