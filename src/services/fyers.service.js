@@ -243,8 +243,8 @@ class FyersService {
         if (!this.accessToken) throw new Error('No access token');
 
         try {
-            // Docs: https://api.fyers.in/data/history-v3
-            const url = `https://api-t1.fyers.in/data/history-v3?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
+            // Docs: https://api.fyers.in/data/history
+            const url = `https://api-t1.fyers.in/data/history?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
             
             logger.info(`Fetching Fyers History: ${url}`);
             
