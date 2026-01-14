@@ -49,37 +49,43 @@ class MarketDataService extends EventEmitter {
     }
 
     async loadSettings() {
-        const settings = await Setting.find({ 
-            key: { $regex: '^(data_feed_|kite_|upstox_|fyers_)' } 
-        });
-        
-        this.config = {};
-        
-        settings.forEach(s => {
-            // Decrypt if it's a secret key
-            if (s.key.includes('api_key') || s.key.includes('api_secret') || s.key.includes('access_token')) {
-                this.config[s.key] = decrypt(s.value);
-            } else {
-                this.config[s.key] = s.value;
-            }
-        });
-
-        // Backward Compatibility / Normalization
-        // Mapped generic keys to the specific provider's keys if generic keys are missing or provider switched
-        const provider = this.config.data_feed_provider || 'kite';
-        
-        // Populate generic keys (used by some old logic or as fallback)
-        // Ideally we should move away from generic data_feed_api_key in memory to specific ones
-        // But for compatibility with existing methods:
-        this.config.data_feed_api_key = this.config[`${provider}_api_key`];
-        this.config.data_feed_api_secret = this.config[`${provider}_api_secret`];
-        this.config.data_feed_access_token = this.config[`${provider}_access_token`];
-        
-        // Pre-load access token if available
-        if (this.config.data_feed_access_token && provider === 'kite') {
-            kiteService.setAccessToken(this.config.data_feed_access_token);
+    const settings = await Setting.find({ 
+        key: { $regex: '^(data_feed_|kite_|upstox_|fyers_)' } 
+    });
+    
+    this.config = {};
+    
+    settings.forEach(s => {
+        // Decrypt if it's a secret key
+        if (s.key.includes('api_key') || s.key.includes('api_secret') || s.key.includes('access_token')) {
+            this.config[s.key] = decrypt(s.value);
+        } else {
+            this.config[s.key] = s.value;
         }
+    });
+
+    // Structure specific provider configs for easier access in handlers
+    ['kite', 'upstox', 'fyers'].forEach(p => {
+        this.config[p] = {
+            appId: this.config[`${p}_api_key`],
+            secretId: this.config[`${p}_api_secret`],
+            accessToken: this.config[`${p}_access_token`],
+            redirectUri: this.config[`${p}_redirect_uri`] || process.env[`${p.toUpperCase()}_REDIRECT_URI`]
+        };
+    });
+
+    // Backward Compatibility / Normalization
+    const provider = this.config.data_feed_provider || 'kite';
+    
+    this.config.data_feed_api_key = this.config[`${provider}_api_key`];
+    this.config.data_feed_api_secret = this.config[`${provider}_api_secret`];
+    this.config.data_feed_access_token = this.config[`${provider}_access_token`];
+    
+    // Pre-load access token if available
+    if (this.config.data_feed_access_token && provider === 'kite') {
+        kiteService.setAccessToken(this.config.data_feed_access_token);
     }
+}
 
     async loadMasterSymbols() {
         const symbols = await MasterSymbol.find({ isActive: true });
