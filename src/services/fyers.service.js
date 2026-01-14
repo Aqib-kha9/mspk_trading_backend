@@ -86,40 +86,32 @@ class FyersService {
     async getQuotes(symbols) {
         if (!this.accessToken) throw new Error('No access token');
         
-        // Fyers Quote API expects comma separated string
-        // API limit 50 symbols per call? Need to batch if large.
-        // Assuming small batch for now.
-        // Endpoint: POST https://api.fyers.in/data/quotes
-        
         try {
-            const symString = symbols.join(',');
-            const res = await fetch(`https://api.fyers.in/data/quotes?symbols=${symString}`, {
-                method: 'GET', // Wait, usually GET or POST? Docs say GET with query param for fewer symbols
-                headers: {
-                    'Authorization': `${this.appId}:${this.accessToken}`
-                }
-            });
+            // Initialize SDK Model
+            if (!this.fyersModel) {
+                this.fyersModel = new fyers.fyersModel();
+                this.fyersModel.setAppId(this.appId);
+                this.fyersModel.setAccessToken(this.accessToken);
+            }
             
-            const data = await res.json();
+            logger.info(`Fetching Fyers Quotes (SDK) for ${symbols.length} symbols`);
+            const data = await this.fyersModel.getQuotes(symbols);
+            
             if (data.s !== 'ok') {
-                logger.error('Fyers Quote Error', data);
+                logger.error('Fyers Quote SDK Error', data);
                 return {};
             }
             
-            // Map Response: [{n: 'NSE:SBIN-EQ', v: { lp: 100, ... } }]
-            // Return map: { 'NSE:SBIN-EQ': 100 }
             const result = {};
             data.d.forEach(item => {
                 const sym = item.n;
-                // Prefer Last Price (lp) or Previous Close (prev_close_price)?
-                // Users want LTP mostly. If Market Closed, LTP is the Closing Price.
                 result[sym] = item.v.lp; 
             });
             
             return result;
             
         } catch (error) {
-            logger.error('Error fetching Fyers quotes', error);
+            logger.error('Error fetching Fyers quotes via SDK', error);
             return {};
         }
     }
@@ -243,7 +235,7 @@ class FyersService {
         if (!this.accessToken) throw new Error('No access token');
 
         try {
-            // Initialize SDK Model if not already done
+            // Initialize SDK Model
             if (!this.fyersModel) {
                 this.fyersModel = new fyers.fyersModel();
                 this.fyersModel.setAppId(this.appId);
@@ -251,16 +243,16 @@ class FyersService {
             }
 
             const params = {
-                "symbol": symbol,
-                "resolution": resolution,
-                "date_format": "1", // yyyy-mm-dd
-                "range_from": from,
-                "range_to": to,
-                "cont_flag": "1"
+                symbol,
+                resolution,
+                date_format: "1",
+                range_from: from,
+                range_to: to,
+                cont_flag: "1"
             };
 
             logger.info(`Fetching Fyers History (SDK): ${symbol} (${resolution})`);
-            const data = await this.fyersModel.get_history(params);
+            const data = await this.fyersModel.getHistory(params);
 
             if (data.s !== 'ok') {
                 logger.error('Fyers History SDK Error:', {
@@ -272,8 +264,6 @@ class FyersService {
                 return [];
             }
 
-            // Data Structure: [[epoch, o, h, l, c, v], ...]
-            // Map to: [{time, open, high, low, close, volume}]
             return data.candles.map(c => ({
                 time: c[0],
                 open: c[1],
