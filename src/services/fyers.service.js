@@ -244,8 +244,7 @@ class FyersService {
 
         try {
             // Docs: https://api.fyers.in/data/history-v3
-            // Base URL already includes /api/v3 in some contexts but history might use just api.fyers.in
-            const url = `https://api-t1.fyers.in/data/history-v3?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
+            const url = `https://api.fyers.in/data/history-v3?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
             
             const res = await fetch(url, {
                 method: 'GET',
@@ -256,7 +255,12 @@ class FyersService {
 
             const data = await res.json();
             if (data.s !== 'ok') {
-                logger.error('Fyers History Error', data);
+                logger.error('Fyers History API Error Details:', {
+                    symbol,
+                    status: data.s,
+                    code: data.code,
+                    message: data.message
+                });
                 return [];
             }
 
