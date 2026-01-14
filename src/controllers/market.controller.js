@@ -3,6 +3,7 @@ import catchAsync from '../utils/catchAsync.js';
 import MasterSegment from '../models/MasterSegment.js';
 import MasterSymbol from '../models/MasterSymbol.js';
 import config from '../config/config.js';
+import logger from '../config/logger.js';
 
 // Seed Data (Standard Set)
 import marketDataService from '../services/marketData.service.js';
