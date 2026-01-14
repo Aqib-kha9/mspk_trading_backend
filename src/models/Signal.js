@@ -55,7 +55,8 @@ const signalSchema = new mongoose.Schema(
     // For admin audit
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'User',
+        required: false // Allow automated signals from 'system' to be null
     }
   },
   {

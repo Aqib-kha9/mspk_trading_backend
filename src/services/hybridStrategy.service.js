@@ -221,7 +221,7 @@ class HybridStrategyService extends EventEmitter {
         // Persist via Signal Service
         try {
             // Create system user context for automated signals
-            const systemUser = { id: this.userId || 'system' };
+            const systemUser = { id: null }; // Model now allows null for automated signals
             
             await signalService.createSignal({
                 strategyId: this.strategyId,

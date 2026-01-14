@@ -243,21 +243,27 @@ class FyersService {
         if (!this.accessToken) throw new Error('No access token');
 
         try {
-            // Docs: https://api.fyers.in/data/history
-            const url = `https://api-t1.fyers.in/data/history?symbol=${symbol}&resolution=${resolution}&date_format=1&range_from=${from}&range_to=${to}&cont_flag=1`;
-            
-            logger.info(`Fetching Fyers History: ${url}`);
-            
-            const res = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `${this.appId}:${this.accessToken}`
-                }
-            });
+            // Initialize SDK Model if not already done
+            if (!this.fyersModel) {
+                this.fyersModel = new fyers.fyersModel();
+                this.fyersModel.setAppId(this.appId);
+                this.fyersModel.setAccessToken(this.accessToken);
+            }
 
-            const data = await res.json();
+            const params = {
+                "symbol": symbol,
+                "resolution": resolution,
+                "date_format": "1", // yyyy-mm-dd
+                "range_from": from,
+                "range_to": to,
+                "cont_flag": "1"
+            };
+
+            logger.info(`Fetching Fyers History (SDK): ${symbol} (${resolution})`);
+            const data = await this.fyersModel.get_history(params);
+
             if (data.s !== 'ok') {
-                logger.error('Fyers History API Error Details:', {
+                logger.error('Fyers History SDK Error:', {
                     symbol,
                     status: data.s,
                     code: data.code,
@@ -278,7 +284,7 @@ class FyersService {
             }));
 
         } catch (error) {
-            logger.error('Error fetching Fyers history', error);
+            logger.error('Error fetching Fyers history via SDK', error);
             return [];
         }
     }

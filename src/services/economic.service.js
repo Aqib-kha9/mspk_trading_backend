@@ -30,7 +30,8 @@ const fetchAndStoreEvents = async (from, to) => {
   }
 
   try {
-    const url = `${FMP_BASE_URL}/economic_calendar?from=${from}&to=${to}&apikey=${apiKey}`;
+    // Using stable endpoint to avoid 403 legacy error
+    const url = `https://financialmodelingprep.com/stable/economic-calendar?from=${from}&to=${to}&apikey=${apiKey}`;
     const response = await axios.get(url);
     const events = response.data;
 
