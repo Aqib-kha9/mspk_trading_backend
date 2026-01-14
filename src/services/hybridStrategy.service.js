@@ -162,6 +162,9 @@ class HybridStrategyService extends EventEmitter {
 
         // Persist via Signal Service
         try {
+            // Create system user context for automated signals
+            const systemUser = { id: this.userId || 'system' };
+            
             await signalService.createSignal({
                 strategyId: this.strategyId,
                 symbol,
@@ -170,7 +173,7 @@ class HybridStrategyService extends EventEmitter {
                 entryPrice: price,
                 notes: signalData.notes,
                 status: 'Active'
-            });
+            }, systemUser);
             logger.info(`✅ Signal persisted for ${symbol}`);
         } catch (e) {
             logger.error(`Error persisting signal for ${symbol}`, e);

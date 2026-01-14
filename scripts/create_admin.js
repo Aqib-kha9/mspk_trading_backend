@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // Load .env from root
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/mspk_trading';
+const MONGO_URI = process.env.MONGO_URI;
 console.log('Connecting to:', MONGO_URI);
 
 mongoose.connect(MONGO_URI).then(() => {

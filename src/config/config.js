@@ -12,7 +12,7 @@ export default {
   port: process.env.PORT || 5000,
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
   mongoose: {
-    url: process.env.MONGO_URI || 'mongodb://localhost:27017/mspk_trading',
+    url: process.env.MONGO_URI ,
     options: {
       useNewUrlParser: true,
       useUnifiedTopology: true,
