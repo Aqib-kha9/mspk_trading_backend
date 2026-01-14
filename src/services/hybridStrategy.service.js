@@ -36,10 +36,59 @@ class HybridStrategyService extends EventEmitter {
         marketDataService.on('price_update', this.handleTick.bind(this));
     }
 
-    handleTick(tick) {
+    async handleTick(tick) {
         const { symbol, price, timestamp } = tick;
+        
+        // Lazy load history if missing and not already loading
+        if (!this.candles[symbol] && !this._fetchingHistory?.[symbol]) {
+             await this.loadHistory(symbol);
+        }
+        
         this.updateCandle(symbol, price, timestamp);
         this.evaluateStrategy(symbol, price);
+    }
+
+    async loadHistory(symbol) {
+        if (!this._fetchingHistory) this._fetchingHistory = {};
+        this._fetchingHistory[symbol] = true;
+        
+        try {
+            logger.info(`📚 Pre-loading history for ${symbol}...`);
+            // We need to fetch history using the current resolution
+            const resolution = (this.CANDLE_SIZE_SEC / 60).toString(); 
+            const to = new Date();
+            const from = new Date(to.getTime() - 2 * 24 * 60 * 60 * 1000); // Fetch 2 days to be safe
+            
+            const formatDate = (d) => d.toISOString().split('T')[0];
+            
+            // Note: marketDataService.getHistory handles formatting and adaptation
+            const history = await marketDataService.adapter.getHistory(
+                symbol, 
+                resolution, 
+                formatDate(from), 
+                formatDate(to)
+            );
+
+            if (history && history.length > 0) {
+                 this.candles[symbol] = history.map(h => ({
+                     time: h.time * 1000, 
+                     open: h.open,
+                     high: h.high,
+                     low: h.low,
+                     close: h.close
+                 })).slice(-this.MAX_CANDLES);
+                 
+                 logger.info(`✅ Successfully primed ${symbol} with ${this.candles[symbol].length} candles`);
+            } else {
+                 this.candles[symbol] = []; // Initialize empty if no history
+                 logger.warn(`⚠️ No history found for ${symbol} to prime strategy`);
+            }
+        } catch (e) {
+            logger.error(`❌ Failed to prime history for ${symbol}: ${e.message}`);
+            this.candles[symbol] = [];
+        } finally {
+            this._fetchingHistory[symbol] = false;
+        }
     }
 
     updateCandle(symbol, price, timestamp) {
