@@ -143,16 +143,23 @@ class HybridStrategyService extends EventEmitter {
         // Let's use the Supertrend result which returns `isBuy` / `isSell` flags based on the last calculated index.
         
         let signal = null;
+        let sl = 0;
+        let tp = 0;
+
         if (supertrend.isBuy) {
             // Confluence Check
-            // PSAR should be below price (bullish)
-            // Structure preferably bullish or neutral
             if (psar.value < price) {
                 signal = 'BUY';
+                // SL: Supertrend or 2%
+                sl = Math.min(supertrend.value, price * 0.98);
+                tp = price * 1.04; // 4% target
             }
         } else if (supertrend.isSell) {
             if (psar.value > price) {
                 signal = 'SELL';
+                // SL: Supertrend or 2%
+                sl = Math.max(supertrend.value, price * 1.02);
+                tp = price * 0.96; // 4% target
             }
         }
 
@@ -174,7 +181,7 @@ class HybridStrategyService extends EventEmitter {
         };
 
         if (signal) {
-            this.processSignal(symbol, signal, price);
+            this.processSignal(symbol, signal, price, sl, tp);
         }
         
         // Emit update via Socket.IO
@@ -189,20 +196,22 @@ class HybridStrategyService extends EventEmitter {
         }
     }
 
-    async processSignal(symbol, type, price) {
+    async processSignal(symbol, type, price, sl, tp) {
         // Debounce / Cooldown
         const lastStatus = this.status[symbol];
         if (lastStatus.lastSignal && lastStatus.lastSignal.type === type && 
-            (new Date() - new Date(lastStatus.lastSignal.time) < 5 * 60 * 1000)) {
-            return; // Ignore repetitive signals within 5 mins
+            (new Date() - new Date(lastStatus.lastSignal.time) < 15 * 60 * 1000)) {
+            return; // Ignore repetitive signals within 15 mins (increased from 5)
         }
 
-        logger.info(`🔥 HYBRID SIGNAL: ${type} on ${symbol} @ ${price}`);
+        logger.info(`🔥 HYBRID SIGNAL: ${type} on ${symbol} @ ${price} [SL: ${sl.toFixed(2)}, TP: ${tp.toFixed(2)}]`);
         
         const signalData = {
             symbol,
             type,
             entryPrice: price,
+            stopLoss: sl,
+            target1: tp,
             notes: 'Hybrid Strategy (Supertrend + PSAR + HH/LL)',
             timestamp: new Date()
         };
@@ -220,6 +229,10 @@ class HybridStrategyService extends EventEmitter {
                 segment: this.mapSegment(symbol),
                 type,
                 entryPrice: price,
+                stopLoss: parseFloat(sl.toFixed(2)),
+                targets: {
+                    target1: parseFloat(tp.toFixed(2))
+                },
                 notes: signalData.notes,
                 status: 'Active'
             }, systemUser);
