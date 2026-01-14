@@ -76,10 +76,14 @@ const initSocket = (server) => {
         const data = JSON.parse(message);
         
         if (channel === 'market_data') {
-            // Broadcast to the specific symbol room
-            if (data.symbol) {
-                io.to(data.symbol).emit('tick', data);
-            }
+            // Data can be a single tick or an array of ticks
+            const ticks = Array.isArray(data) ? data : [data];
+            
+            ticks.forEach(tick => {
+                if (tick.symbol) {
+                    io.to(tick.symbol).emit('tick', tick);
+                }
+            });
         } else if (channel === 'market_stats') {
             // Broadcast globally (or to specific admin room if needed)
             io.emit('market_stats', data);
