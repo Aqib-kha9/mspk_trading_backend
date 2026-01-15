@@ -8,6 +8,7 @@ import MasterSymbol from '../models/MasterSymbol.js';
 import { kiteService } from './kite.service.js';
 import { upstoxService } from './upstox.service.js';
 import { fyersService } from './fyers.service.js';
+import { redisClient } from './redis.service.js';
 import logger from '../config/logger.js';
 import { decrypt, encrypt } from '../utils/encryption.js';
 
@@ -24,27 +25,26 @@ class MarketDataService extends EventEmitter {
         this.tickCount = 0;
         this.startTime = new Date();
 
-        // 1. Load Initial Configuration
-        this.init();
+        // 1. Initial Configuration (Called explicitly in server.js)
+        // this.init(); 
     }
 
     async init() {
+        console.log('MARKET_DATA: Initializing Service...');
         try {
             await this.loadSettings();
-            await this.loadMasterSymbols();
-            
+            // 1. Always start simulation first (Safe fallback)
+            this.startSimulation();
+
             if (this.canGoLive()) {
                 await this.startLiveFeed();
-            } else {
-                this.startSimulation();
             }
 
             // Periodic Stats Broadcast
             this.startStatsBroadcast();
 
         } catch (error) {
-            logger.error('Failed to initialize MarketDataService', error);
-            this.startSimulation(); // Fallback
+            console.error('MARKET_DATA_ERROR: Failed to initialize', error);
         }
     }
 
@@ -93,12 +93,9 @@ class MarketDataService extends EventEmitter {
         this.tokenMap = {};
         
         symbols.forEach(s => {
-            // For simulation, we need base prices. 
-            // In real app, we fetch from DB or history. 
-            // Here we use defaults if not present.
             this.symbols[s.symbol] = { 
                 base: 1000, 
-                volatility: 10,
+                volatility: s.tickSize * 200 || 10,
                 instrumentToken: s.instrumentToken
             };
             
@@ -106,11 +103,25 @@ class MarketDataService extends EventEmitter {
                 this.tokenMap[s.instrumentToken] = s.symbol;
             }
             
-            // Initialize mock price if not set
             if (!this.currentPrices[s.symbol]) {
                 this.currentPrices[s.symbol] = 1000;
             }
         });
+
+        // Also ensure symbols from active signals are in the simulation list
+        try {
+            const Signal = (await import('../models/Signal.js')).default;
+            const activeSignals = await Signal.find({ status: { $ne: 'Closed' } }).distinct('symbol');
+            activeSignals.forEach(sym => {
+                if (!this.symbols[sym]) {
+                    this.symbols[sym] = { base: 1500, volatility: 5 };
+                    if (!this.currentPrices[sym]) this.currentPrices[sym] = 1500;
+                }
+            });
+            logger.info(`MARKET_DATA: Added ${activeSignals.length} signal symbols to simulation`);
+        } catch (err) {
+            logger.error('Error loading signal symbols for simulation', err);
+        }
     }
 
     canGoLive() {
@@ -149,7 +160,7 @@ class MarketDataService extends EventEmitter {
 
         } catch (e) {
             logger.error(`Error starting live feed (${provider})`, e);
-            this.startSimulation();
+            console.error(`❌ MARKET_DATA: Failed to connect to ${provider.toUpperCase()}. Please check your API Keys/Tokens.`);
         }
     }
 
@@ -159,12 +170,14 @@ class MarketDataService extends EventEmitter {
         this.adapter.connectTicker((ticks) => {
             this.processLiveTicks(ticks);
         }, () => {
+            console.log(`✅ MARKET_DATA: Live Ticker Connected (${this.config.data_feed_provider})`);
             logger.info('Live Ticker Connected');
             this.mode = 'live';
             this.provider = this.config.data_feed_provider;
             
             // NEW: Fetch Initial Quotes/Snapshots
             this.fetchInitialQuotes().then(() => {
+                console.log('🛑 MARKET_DATA: Stopping Simulation (Live Data Active)');
                 this.stopSimulation();
                 this.subscribeToSymbols();
             });
@@ -271,6 +284,7 @@ class MarketDataService extends EventEmitter {
     startSimulation() {
         if (this.interval) return;
         this.mode = 'simulation';
+        console.log('📡 MARKET_DATA: Mock Simulation Started');
         logger.info('📡 Market Data Feed Started (MOCK SIMULATION)...');
         
         this.interval = setInterval(() => {
@@ -293,11 +307,11 @@ class MarketDataService extends EventEmitter {
     }
 
     publishToRedis(channel, data) {
-         import('./redis.service.js').then(({ redisClient }) => {
-            if(redisClient.status === 'ready') {
-                redisClient.publish(channel, JSON.stringify(data));
-            }
-        }).catch(e => console.error(`Redis Publish Error ${channel}`, e));
+        if(redisClient.status === 'ready') {
+            redisClient.publish(channel, JSON.stringify(data));
+        } else {
+            // logger.warn(`Redis: Cannot publish to ${channel}, status: ${redisClient.status}`);
+        }
     }
 
     simulateTick() {
@@ -306,10 +320,14 @@ class MarketDataService extends EventEmitter {
         
         // Use Mock Symbols list (NIFTY/BANKNIFTY defaults if DB empty)
         // Use Mock Symbols list (Default to Frontend Demo Symbols if DB empty)
-        const demoSymbols = ['SPX', 'NDQ', 'DJI', 'AAPL', 'TSLA', 'NVDA', 'BTC/USD', 'EUR/USD', 'GOLD', 'VIX'];
+        const demoSymbols = ['SPX', 'NDQ', 'DJI', 'AAPL', 'TSLA', 'NVDA', 'BTC/USD', 'BTCUSD', 'EUR/USD', 'GOLD', 'VIX'];
         // Merge DB symbols with Demo symbols to ensure frontend always has data
         const dbSymbols = Object.keys(this.symbols);
         const mockList = [...new Set([...dbSymbols, ...demoSymbols])];
+
+        if (this.tickCount === 0) {
+            console.log(`📡 MARKET_DATA: Simulating ${mockList.length} symbols: ${mockList.join(', ')}`);
+        }
 
         const defaultPrices = {
             'SPX': 4750, 'NDQ': 16800, 'DJI': 37500,
@@ -340,6 +358,10 @@ class MarketDataService extends EventEmitter {
             this.tickCount++;
             this.emit('price_update', tick);
             this.publishToRedis('market_data', tick);
+            
+            if (symbol === 'NSE:TCS-EQ') {
+                logger.info(`Simulation: Generated tick for ${symbol}: ${price}`);
+            }
             updates.push(tick);
         });
     }
@@ -426,8 +448,44 @@ class MarketDataService extends EventEmitter {
      */
     async getHistory(symbol, resolution, from, to) {
         if (this.mode === 'simulation') {
-            // Return some mock if needed, but usually frontend handles mock if API fails
-            return [];
+            // Generate Realistic Mock History
+            const history = [];
+            const startTime = parseInt(from);
+            const endTime = parseInt(to);
+            
+            // Map resolution (minutes)
+            let step = 60; // default 1m
+            if (resolution === '5') step = 300;
+            else if (resolution === '15') step = 900;
+            else if (resolution === '30') step = 1800;
+            else if (resolution === '60' || resolution === '1H') step = 3600;
+            else if (resolution === '1D') step = 86400;
+
+            const basePrice = this.currentPrices[symbol] || 1500;
+            const volatility = this.symbols[symbol]?.volatility || 5;
+            
+            let price = basePrice;
+            const count = Math.min(2000, Math.floor((endTime - startTime) / step));
+            
+            for (let i = 0; i < count; i++) {
+                const time = startTime + (i * step);
+                const open = price;
+                const change = (Math.random() - 0.5) * volatility;
+                const close = open + change;
+                const high = Math.max(open, close) + (Math.random() * (volatility / 2));
+                const low = Math.min(open, close) - (Math.random() * (volatility / 2));
+                
+                history.push({
+                    time,
+                    open: parseFloat(open.toFixed(2)),
+                    high: parseFloat(high.toFixed(2)),
+                    low: parseFloat(low.toFixed(2)), 
+                    close: parseFloat(close.toFixed(2)),
+                    volume: Math.floor(Math.random() * 1000)
+                });
+                price = close;
+            }
+            return history;
         }
 
         if (!this.adapter || !this.adapter.getHistory) {

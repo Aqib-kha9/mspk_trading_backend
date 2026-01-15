@@ -3,7 +3,28 @@ import announcementService from './announcement.service.js';
 import logger from '../config/logger.js';
 import { getIo } from './socket.service.js';
 
+const mapSignalToCategory = (signalBody) => {
+  const { symbol, segment } = signalBody;
+  const sym = symbol ? symbol.toUpperCase() : '';
+  const seg = segment ? segment.toUpperCase() : '';
+
+  if (sym.includes('NIFTY') && !sym.includes('BANK') && !sym.includes('FIN')) return 'NIFTY_OPT';
+  if (sym.includes('BANKNIFTY')) return 'BANKNIFTY_OPT';
+  if (sym.includes('FINNIFTY')) return 'FINNIFTY_OPT';
+  if (seg === 'MCX' || seg === 'COMMODITY') return 'MCX_FUT';
+  if (seg === 'CDS' || seg === 'CURRENCY') return 'CURRENCY';
+  if (seg === 'CRYPTO') return 'CRYPTO';
+  if (seg === 'EQ' || seg === 'EQUITY') return 'EQUITY_INTRA'; // Default to Intra
+  
+  return 'EQUITY_INTRA'; // Fallback
+};
+
 const createSignal = async (signalBody, user) => {
+  // Auto-map category if missing
+  if (!signalBody.category) {
+      signalBody.category = mapSignalToCategory(signalBody);
+  }
+
   const signal = await Signal.create({ ...signalBody, createdBy: user.id });
   
   // Broadcast via Socket.io
@@ -13,7 +34,7 @@ const createSignal = async (signalBody, user) => {
   } catch (e) {
       logger.error('Failed to emit socket event for new signal', e);
   }
-
+  
   // Create Announcement for the Feed
   try {
       await announcementService.createAnnouncement({
@@ -23,11 +44,11 @@ const createSignal = async (signalBody, user) => {
           priority: 'NORMAL',
           targetAudience: { role: 'all', planValues: [] },
           isActive: true
-      });
+  });
   } catch (e) {
       logger.error('Failed to create announcement for signal', e);
   }
-  
+
   // Publish to Redis for Notification Service
   try {
       const { redisClient } = await import('./redis.service.js');
@@ -115,6 +136,16 @@ const updateSignalById = async (signalId, updateBody) => {
   if (!signal) {
      throw new Error('Signal not found');
   }
+  // Auto-map category on update if segment/symbol changed or category missing
+  if ((updateBody.symbol || updateBody.segment) && !updateBody.category) {
+     // Merge current signal data with updates to map correctly
+     const merged = { ...signal.toObject(), ...updateBody };
+     updateBody.category = mapSignalToCategory(merged);
+  } else if (!signal.category && !updateBody.category) {
+      // First time mapping for legacy signals
+      updateBody.category = mapSignalToCategory(signal);
+  }
+
   Object.assign(signal, updateBody);
   
   // Status update broadcast

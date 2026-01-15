@@ -1,8 +1,8 @@
-import { fyersService } from './src/services/fyers.service.js';
-import Setting from './src/models/Setting.js';
-import connectDB from './src/config/database.js';
-import { decrypt } from './src/utils/encryption.js';
-import logger from './src/config/logger.js';
+import { fyersService } from '../src/services/fyers.service.js';
+import Setting from '../src/models/Setting.js';
+import connectDB from '../src/config/database.js';
+import { decrypt } from '../src/utils/encryption.js';
+import logger from '../src/config/logger.js';
 import dotenv from 'dotenv';
 dotenv.config();
 

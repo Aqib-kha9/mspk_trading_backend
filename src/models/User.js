@@ -71,11 +71,7 @@ const userSchema = new mongoose.Schema(
     equity: { type: Number, default: 0 },
     marginUsed: { type: Number, default: 0 },
     pnl: { type: Number, default: 0 },
-    fcmTokens: [
-      {
-        type: String,
-      },
-    ],
+    fcmTokens: [String],
     isEmailVerified: {
       type: Boolean,
       default: false,

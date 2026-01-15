@@ -30,14 +30,45 @@ const createUser = async (userBody) => {
 };
 
 const loginUserWithEmailAndPassword = async (email, password) => {
-  const user = await User.findOne({ email });
+  // Ensure email is lowercase to match schema
+  const user = await User.findOne({ email: email.toLowerCase() });
   if (!user || !(await user.matchPassword(password))) {
     throw new ApiError(401, 'Incorrect email or password');
   }
-  return user;
+
+  // Return both the Mongoose Document (for saving) and the Plan Data (for response)
+  const planDetails = await getUserActivePlan(user);
+  return { user, planDetails };
+};
+
+const getUserActivePlan = async (user) => {
+  const Subscription = (await import('../models/Subscription.js')).default;
+  
+  const activeSub = await Subscription.findOne({ 
+      user: user._id, 
+      status: 'active', 
+      endDate: { $gt: new Date() } 
+  }).populate('plan');
+
+  if (activeSub && activeSub.plan) {
+      return {
+          planId: activeSub.plan._id,
+          planName: activeSub.plan.name,
+          permissions: activeSub.plan.permissions || [],
+          planExpiry: activeSub.endDate
+      };
+  }
+  
+  return {
+      permissions: [],
+      planName: null,
+      planId: null,
+      planExpiry: null
+  };
 };
 
 export default {
   createUser,
   loginUserWithEmailAndPassword,
+  getUserActivePlan
 };

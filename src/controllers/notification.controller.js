@@ -33,8 +33,24 @@ const markAllAsRead = catchAsync(async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 });
 
+const registerFCMToken = catchAsync(async (req, res) => {
+  const { token } = req.body;
+  console.log('NotifController: Registering FCM Token:', token, 'for User:', req.user._id);
+  if (!token) {
+    return res.status(httpStatus.BAD_REQUEST).send({ message: 'Token is required' });
+  }
+
+  // Update user with unique token (avoid duplicates)
+  await req.user.updateOne({
+    $addToSet: { fcmTokens: token }
+  });
+
+  res.status(httpStatus.OK).send({ message: 'Token registered successfully' });
+});
+
 export default {
   getMyNotifications,
   markAsRead,
-  markAllAsRead
+  markAllAsRead,
+  registerFCMToken
 };

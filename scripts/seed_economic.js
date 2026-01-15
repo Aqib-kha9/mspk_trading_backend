@@ -1,6 +1,6 @@
-import { economicService } from './src/services/economic.service.js';
-import connectDB from './src/config/database.js';
-import logger from './src/config/logger.js';
+import { economicService } from '../src/services/economic.service.js';
+import connectDB from '../src/config/database.js';
+import logger from '../src/config/logger.js';
 
 const seed = async () => {
     try {

@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config(); 
-import { fyersService } from './src/services/fyers.service.js';
+import { fyersService } from '../src/services/fyers.service.js';
 
 const start = () => {
     const appId = process.env.FYERS_APP_ID;

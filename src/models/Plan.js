@@ -13,8 +13,24 @@ const planSchema = new mongoose.Schema(
     segment: {
       type: String,
       enum: ['EQUITY', 'FNO', 'COMMODITY', 'CURRENCY'],
-      required: true,
+      // required: true, // Made optional to support multi-segment plans
     },
+    permissions: [{
+      type: String,
+      enum: [
+        'EQUITY_INTRA', 
+        'EQUITY_DELIVERY', 
+        'NIFTY_OPT', 
+        'BANKNIFTY_OPT', 
+        'FINNIFTY_OPT', 
+        'STOCK_OPT', 
+        'MCX_FUT', 
+        'CURRENCY', 
+        'CRYPTO',
+        'BTST',
+        'HERO_ZERO'
+      ]
+    }],
     price: {
       type: Number,
       required: true,

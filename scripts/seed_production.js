@@ -5,10 +5,10 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 
 // Models
-import User from './src/models/User.js';
-import Segment from './src/models/MasterSegment.js';
-import MasterSymbol from './src/models/MasterSymbol.js';
-import Strategy from './src/models/Strategy.js';
+import User from '../src/models/User.js';
+import Segment from '../src/models/MasterSegment.js';
+import MasterSymbol from '../src/models/MasterSymbol.js';
+import Strategy from '../src/models/Strategy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

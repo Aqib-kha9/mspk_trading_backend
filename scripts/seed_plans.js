@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import Plan from './src/models/Plan.js';
+import Plan from '../src/models/Plan.js';
 
 // Setup __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);

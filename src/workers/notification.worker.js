@@ -116,13 +116,21 @@ const notificationWorker = new Worker('notifications', async (job) => {
       }
       else if (type === 'push') {
           const pushConfig = getSetting('push_config');
-          if (pushConfig && pushConfig.enabled && pushConfig.fcmServerKey) {
+          // If pushConfig exists and is enabled, we send. 
+          // We don't strictly NEED fcmServerKey check anymore because we use Admin SDK, 
+          // but we honor the 'enabled' flag.
+          if (pushConfig && pushConfig.enabled) {
               if (user.fcmTokens && user.fcmTokens.length > 0) {
+                  // Prepare data payload for deep-linking
+                  const pushData = {};
+                  if (signal) pushData.signalId = signal._id;
+                  if (announcement) pushData.announcementId = announcement._id;
+
                   await pushService.sendPushNotification(
-                      pushConfig.fcmServerKey, 
                       user.fcmTokens, 
                       title, 
-                      message
+                      message,
+                      pushData
                   );
               }
           }

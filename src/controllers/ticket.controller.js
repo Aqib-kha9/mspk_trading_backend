@@ -28,7 +28,9 @@ const createTicket = catchAsync(async (req, res) => {
 const getTickets = catchAsync(async (req, res) => {
   // Return all tickets for Admin/Support Dashboard view
   // Pagination can be added later if needed
-  const tickets = await Ticket.find({}).sort({ createdAt: -1 }).populate('user', 'name email');
+  // Filter by user unless admin
+  const filter = req.user.role === 'admin' ? {} : { user: req.user.id };
+  const tickets = await Ticket.find(filter).sort({ createdAt: -1 }).populate('user', 'name email');
   res.send(tickets);
 });
 

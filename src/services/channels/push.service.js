@@ -1,42 +1,37 @@
-import axios from 'axios';
+import { admin } from '../../config/firebase.js';
 import logger from '../../config/logger.js';
 
-const sendPushNotification = async (serverKey, tokens, title, body, data = {}) => {
+const sendPushNotification = async (tokens, title, body, data = {}) => {
     try {
-        if (!serverKey) {
-            throw new Error('Missing FCM Server Key');
-        }
-
         if (!tokens || tokens.length === 0) {
             logger.warn('No FCM tokens provided for push notification');
             return false;
         }
 
-        const url = 'https://fcm.googleapis.com/fcm/send';
+        const uniqueTokens = [...new Set(tokens)];
+        
+        // Ensure all data values are strings (FCM requirement)
+        const stringData = {};
+        Object.keys(data).forEach(key => {
+            stringData[key] = String(data[key]);
+        });
 
-        const payload = {
-            registration_ids: tokens,
+        const message = {
             notification: {
                 title: title,
                 body: body,
-                sound: 'default'
             },
-            data: data, // Custom data payload
-            priority: 'high'
+            data: stringData,
+            tokens: uniqueTokens,
         };
 
-        const response = await axios.post(url, payload, {
-            headers: {
-                'Authorization': `key=${serverKey}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        logger.info(`Push notification sent. Success: ${response.data.success}, Failure: ${response.data.failure}`);
+        const response = await admin.messaging().sendEachForMulticast(message);
+        logger.info(`Push notification sent. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+        
         return true;
     } catch (error) {
-        logger.error('Push Notification Error', error.response?.data || error.message);
-        throw error;
+        logger.error('Push Notification Error:', error.message);
+        return false;
     }
 };
 

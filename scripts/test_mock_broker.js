@@ -1,4 +1,4 @@
-import { fyersService } from './src/services/fyers.service.js';
+import { fyersService } from '../src/services/fyers.service.js';
 
 async function testMockBroker() {
     console.log('Testing Mock Broker Integration...');

@@ -15,38 +15,28 @@ const initSocket = (server) => {
     },
   });
 
-  // Middleware for Auth
+  // Middleware for Auth (Simplified/Original)
   io.use((socket, next) => {
-    try {
-        const token = socket.handshake.query.token;
-        
-        if (token && token !== 'null' && token !== 'undefined') {
-        jwt.verify(socket.handshake.query.token, config.jwt.secret, (err, decoded) => {
-            if (err) {
-                logger.error(`Socket Auth Failed: ${err.message}`);
-                return next(new Error('Authentication error'));
-            }
+    const token = socket.handshake.query.token || socket.handshake.auth?.token;
+    if (token) {
+        jwt.verify(token, config.jwt.secret, (err, decoded) => {
+            if (err) return next(new Error('Authentication error'));
             socket.decoded = decoded;
             next();
         });
-        } else {
-            logger.warn('Socket connection rejected: No token provided');
-            next(new Error('Authentication error'));
-        }
-    } catch (error) {
-        logger.error(`Socket Middleware Error: ${error.message}`);
-        next(new Error('Internal Server Error'));
+    } else {
+        next(); // Allow connection without token (Temporary/Legacy behavior)
     }
   });
 
   io.on('connection', (socket) => {
-    logger.info(`Socket connected: ${socket.id}`);
+    logger.debug(`Socket connected: ${socket.id}`);
 
     // Client subscribes to a specific symbol room
     socket.on('subscribe', (symbol) => {
       if (symbol) {
         socket.join(symbol);
-        logger.debug(`Socket ${socket.id} joined ${symbol}`);
+        logger.debug(`Socket ${socket.id} joined room: ${symbol}`);
       }
     });
 

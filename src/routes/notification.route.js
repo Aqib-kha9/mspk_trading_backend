@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(auth());
 
 router.get('/', notificationController.getMyNotifications);
+router.post('/fcm-token', notificationController.registerFCMToken);
 router.patch('/read-all', notificationController.markAllAsRead);
 router.patch('/:notificationId/read', notificationController.markAsRead);
 

@@ -12,6 +12,23 @@ const signalSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    category: {
+      type: String,
+      required: true, 
+      enum: [
+        'EQUITY_INTRA', 
+        'EQUITY_DELIVERY', 
+        'NIFTY_OPT', 
+        'BANKNIFTY_OPT', 
+        'FINNIFTY_OPT', 
+        'STOCK_OPT', 
+        'MCX_FUT', 
+        'CURRENCY', 
+        'CRYPTO',
+        'BTST',
+        'HERO_ZERO'
+      ]
+    },
     type: {
       type: String,
       enum: ['BUY', 'SELL'],

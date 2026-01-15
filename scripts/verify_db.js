@@ -1,6 +1,6 @@
-import connectDB from './src/config/database.js';
-import EconomicEvent from './src/models/EconomicEvent.js';
-import logger from './src/config/logger.js';
+import connectDB from '../src/config/database.js';
+import EconomicEvent from '../src/models/EconomicEvent.js';
+import logger from '../src/config/logger.js';
 
 const checkData = async () => {
     try {

@@ -10,19 +10,32 @@ const register = catchAsync(async (req, res) => {
 
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
-  const user = await authService.loginUserWithEmailAndPassword(email, password);
+  // Destructure service response
+  const { user, planDetails } = await authService.loginUserWithEmailAndPassword(email, password);
   
   // Single Session & IP Tracking Logic
   user.tokenVersion = (user.tokenVersion || 0) + 1;
   user.lastLoginIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
-  await user.save();
+  await user.save(); // Now works because 'user' is a Mongoose doc
 
   const tokens = await tokenService.generateAuthTokens(user);
-  res.send({ user, token: tokens.access.token });
+  
+  // Merge User + Plan Details for Frontend
+  const responseUser = {
+      ...user.toObject(),
+      ...planDetails
+  };
+
+  res.send({ user: responseUser, token: tokens.access.token });
 });
 
 const getMe = catchAsync(async (req, res) => {
-    res.send(req.user);
+    const planDetails = await authService.getUserActivePlan(req.user);
+    const responseUser = {
+        ...req.user.toObject(),
+        ...planDetails
+    };
+    res.send(responseUser);
 });
 
 const updateMe = catchAsync(async (req, res) => {
